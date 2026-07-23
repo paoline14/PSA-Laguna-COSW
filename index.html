@@ -783,7 +783,7 @@ async function saveDepartments(){ try{ await window.storage.set('departments-dat
 async function getPin(){
   try{
     const r = await window.storage.get('auth-pin', true);
-    if(r && r.value) return r.value;
+    if(r && r.value !== undefined && r.value !== null) return String(r.value);
   }catch(e){
     // key doesn't exist yet, or storage unavailable — fall through
   }
