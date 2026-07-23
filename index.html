@@ -752,26 +752,33 @@ function fmtMoney(n){ return Number(n||0).toLocaleString('en-US',{maximumFractio
 function daysInMonth(y,m){ return new Date(y, m, 0).getDate(); }
 
 /* ===================== STORAGE ===================== */
+function parseStored(v, fallback){
+  if(v === null || v === undefined) return fallback;
+  if(typeof v === 'string'){
+    try{ return JSON.parse(v); }catch(e){ return fallback; }
+  }
+  return v; // backend already deserialized it into an object/array
+}
 async function loadAll(){
   try{
     const e = await window.storage.get('employees-data', true);
-    employees = e ? JSON.parse(e.value) : {};
+    employees = parseStored(e && e.value, {});
   }catch(err){ employees = {}; }
   try{
     const a = await window.storage.get('attendance-data', true);
-    attendance = a ? JSON.parse(a.value) : {};
+    attendance = parseStored(a && a.value, {});
   }catch(err){ attendance = {}; }
   try{
     const l = await window.storage.get('leaves-data', true);
-    leaves = l ? JSON.parse(l.value) : [];
+    leaves = parseStored(l && l.value, []);
   }catch(err){ leaves = []; }
   try{
     const p = await window.storage.get('payroll-data', true);
-    payroll = p ? JSON.parse(p.value) : {};
+    payroll = parseStored(p && p.value, {});
   }catch(err){ payroll = {}; }
   try{
     const d = await window.storage.get('departments-data', true);
-    departments = d ? JSON.parse(d.value) : departments;
+    departments = parseStored(d && d.value, departments);
   }catch(err){ /* keep defaults */ }
 }
 async function saveEmployees(){ try{ await window.storage.set('employees-data', JSON.stringify(employees), true); }catch(e){ toast('Save failed: ' + e.message); } }
