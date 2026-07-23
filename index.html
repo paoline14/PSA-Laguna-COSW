@@ -172,8 +172,12 @@ nav.nav{display:flex;flex-direction:column;gap:2px;flex:1;}
 .org-root-box{display:inline-block;background:linear-gradient(90deg,var(--gold),var(--gold-deep));color:#1a1206;font-weight:800;font-family:'Sora',sans-serif;font-size:13.5px;padding:10px 22px;border-radius:10px;box-shadow:var(--shadow);}
 .org-stem{width:2px;height:20px;background:var(--line);margin:0 auto;}
 .org-branch{display:inline-flex;flex-wrap:wrap;gap:22px;justify-content:center;border-top:2px solid var(--line);padding-top:20px;}
-.org-dept-card{position:relative;width:190px;background:var(--ink);border:1px solid var(--line);border-radius:10px;padding:12px;text-align:left;}
+.org-dept-card{position:relative;width:220px;background:var(--ink);border:1px solid var(--line);border-radius:10px;padding:12px;text-align:left;}
 .org-dept-card::before{content:'';position:absolute;top:-20px;left:50%;width:2px;height:20px;background:var(--line);}
+.org-emp-card{display:flex;align-items:center;gap:9px;padding:8px;background:var(--panel);border:1px solid var(--line);border-radius:8px;margin-bottom:7px;}
+.org-emp-card:last-child{margin-bottom:0;}
+.org-emp-info .name{font-size:12px;font-weight:700;color:var(--text);line-height:1.25;}
+.org-emp-info .role{font-size:10.5px;color:var(--muted);line-height:1.25;margin-top:1px;}
 .org-dept-head{font-size:11px;text-transform:uppercase;letter-spacing:.4px;font-weight:700;margin-bottom:8px;padding-bottom:6px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;}
 .org-supervisor{display:flex;align-items:center;gap:8px;margin-bottom:8px;}
 .org-supervisor .name{font-weight:600;font-size:12.5px;}
@@ -1000,7 +1004,14 @@ function renderOrgChart(){
   const cards = Object.keys(byDept).map(d=>{
     const staff = byDept[d];
     const staffHtml = staff.length
-      ? `<div class="org-staff-list">${staff.map(o=>o.name).join(', ')}</div>`
+      ? staff.map(o=>`
+        <div class="org-emp-card">
+          ${avatarHtml(o,32)}
+          <div class="org-emp-info">
+            <div class="name">${o.name}</div>
+            <div class="role">${o.designation||'—'}</div>
+          </div>
+        </div>`).join('')
       : '<div class="org-staff-list">No staff yet.</div>';
     return `
       <div class="org-dept-card">
