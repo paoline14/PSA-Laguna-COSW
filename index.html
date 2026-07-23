@@ -409,6 +409,7 @@ tr:hover td{background:rgba(167,139,250,0.06);}
     </div>
     <nav class="nav">
       <button data-view="dashboard" class="active" onclick="showView('dashboard')"><span class="ic">◈</span> Dashboard</button>
+      <button data-view="orgchart" onclick="showView('orgchart')"><span class="ic">⛋</span> Org Chart</button>
       <button data-view="employees" onclick="showView('employees')"><span class="ic">☰</span> Employees</button>
       <button data-view="attendance" onclick="showView('attendance')"><span class="ic">▦</span> Attendance</button>
       <button data-view="leaves" onclick="showView('leaves')"><span class="ic">◷</span> Leave</button>
@@ -445,8 +446,17 @@ tr:hover td{background:rgba(167,139,250,0.06);}
           <div id="upcomingEvents"></div>
         </div>
       </div>
-      <div class="panel" style="margin-top:20px;">
-        <h3>Organizational chart</h3>
+    </div>
+
+    <!-- ORG CHART -->
+    <div class="view" id="view-orgchart">
+      <div class="topbar">
+        <div>
+          <h2>Organizational Chart</h2>
+          <div class="desc">Reporting structure across all departments</div>
+        </div>
+      </div>
+      <div class="panel">
         <div id="orgChart"></div>
       </div>
     </div>
@@ -880,11 +890,13 @@ function showView(name){
   if(name==='leaves') renderLeaves();
   if(name==='employees') renderEmployeeTable();
   if(name==='dashboard') renderDashboard();
+  if(name==='orgchart') renderOrgChart();
   if(name==='settings') renderSettings();
 }
 
 function renderAll(){
   renderDashboard();
+  renderOrgChart();
   renderEmployeeTable();
   renderSettings();
   const now = new Date();
@@ -955,8 +967,6 @@ function renderDashboard(){
         <div style="font-size:11px;color:var(--muted);">${ev.daysAway===0?'Today':ev.daysAway+' day(s) away'}</div>
       </div>
     </div>`).join('') : '<div style="font-size:12.5px;color:var(--muted);">Nothing coming up in the next 30 days.</div>';
-
-  renderOrgChart();
 }
 function renderOrgChart(){
   const box = document.getElementById('orgChart');
@@ -1169,14 +1179,14 @@ async function saveEmployee(){
   };
   await saveEmployees();
   closeModal('employeeModalOverlay');
-  renderEmployeeTable(); renderDashboard(); renderPayroll(); renderLeaves();
+  renderEmployeeTable(); renderDashboard(); renderOrgChart(); renderPayroll(); renderLeaves();
   toast('Employee saved');
 }
 async function deleteEmployee(id){
   if(!confirm('Delete this employee record? This cannot be undone.')) return;
   delete employees[id];
   await saveEmployees();
-  renderEmployeeTable(); renderDashboard(); renderPayroll(); renderLeaves();
+  renderEmployeeTable(); renderDashboard(); renderOrgChart(); renderPayroll(); renderLeaves();
   toast('Employee deleted');
 }
 
@@ -1215,7 +1225,7 @@ function cycleAttendance(empId, mk, dk){
   const next = order[(order.indexOf(cur)+1) % order.length];
   if(next === '') delete attendance[empId][mk][dk]; else attendance[empId][mk][dk] = next;
   renderAttendance();
-  renderDashboard();
+  renderDashboard(); renderOrgChart();
   clearTimeout(attSaveTimer);
   attSaveTimer = setTimeout(saveAttendance, 700);
 }
@@ -1236,7 +1246,7 @@ async function saveLeaveRequest(){
   leaves.push({ id: uid(), empId, type: document.getElementById('leaveType').value, from, to, days, status:'Pending', reason: document.getElementById('leaveReason').value.trim(), appliedDate: new Date().toISOString().slice(0,10) });
   await saveLeaves();
   closeModal('leaveModalOverlay');
-  renderLeaves(); renderDashboard();
+  renderLeaves(); renderDashboard(); renderOrgChart();
   toast('Leave request submitted');
 }
 function renderLeaves(){
@@ -1279,7 +1289,7 @@ async function setLeaveStatus(id, status){
     await saveEmployees();
   }
   await saveLeaves();
-  renderLeaves(); renderDashboard();
+  renderLeaves(); renderDashboard(); renderOrgChart();
   toast('Leave ' + status.toLowerCase());
 }
 async function updateLeaveBalance(empId, key, val){
