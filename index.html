@@ -168,6 +168,19 @@ nav.nav{display:flex;flex-direction:column;gap:2px;flex:1;}
 .dept-row .bar-fill{height:100%;border-radius:4px;}
 .dept-row .cnt{font-family:'IBM Plex Mono',monospace;font-size:11.5px;color:var(--muted);width:18px;text-align:right;}
 
+.org-chart-wrap{text-align:center;padding:10px 4px 4px;overflow-x:auto;}
+.org-root-box{display:inline-block;background:linear-gradient(90deg,var(--gold),var(--gold-deep));color:#1a1206;font-weight:800;font-family:'Sora',sans-serif;font-size:13.5px;padding:10px 22px;border-radius:10px;box-shadow:var(--shadow);}
+.org-stem{width:2px;height:20px;background:var(--line);margin:0 auto;}
+.org-branch{display:inline-flex;flex-wrap:wrap;gap:22px;justify-content:center;border-top:2px solid var(--line);padding-top:20px;}
+.org-dept-card{position:relative;width:190px;background:var(--ink);border:1px solid var(--line);border-radius:10px;padding:12px;text-align:left;}
+.org-dept-card::before{content:'';position:absolute;top:-20px;left:50%;width:2px;height:20px;background:var(--line);}
+.org-dept-head{font-size:11px;text-transform:uppercase;letter-spacing:.4px;font-weight:700;margin-bottom:8px;padding-bottom:6px;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;}
+.org-supervisor{display:flex;align-items:center;gap:8px;margin-bottom:8px;}
+.org-supervisor .name{font-weight:600;font-size:12.5px;}
+.org-supervisor .role{font-size:10.5px;color:var(--muted);}
+.org-no-super{font-size:11px;color:var(--muted);font-style:italic;margin-bottom:8px;}
+.org-staff-list{font-size:11px;color:var(--muted);line-height:1.6;}
+
 .event-item{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--line);font-size:13px;}
 .event-item:last-child{border-bottom:none;}
 .event-item .badge-id{font-size:10px;padding:3px 6px;}
@@ -432,6 +445,10 @@ tr:hover td{background:rgba(167,139,250,0.06);}
           <div id="upcomingEvents"></div>
         </div>
       </div>
+      <div class="panel" style="margin-top:20px;">
+        <h3>Organizational chart</h3>
+        <div id="orgChart"></div>
+      </div>
     </div>
 
     <!-- EMPLOYEES -->
@@ -582,6 +599,10 @@ tr:hover td{background:rgba(167,139,250,0.06);}
             <select id="empStatus"><option value="Active">Active</option><option value="Inactive">Inactive</option></select>
           </div>
         </div>
+        <div class="field" style="display:flex;align-items:center;gap:8px;margin-top:-4px;">
+          <input type="checkbox" id="empSupervisor" style="width:16px;height:16px;accent-color:var(--gold);cursor:pointer;">
+          <label for="empSupervisor" style="margin:0;cursor:pointer;font-size:12.5px;color:var(--muted);">Office supervisor (oversees all departments — shown at the top of the org chart)</label>
+        </div>
         <div class="field-row">
           <div class="field"><label>Email</label><input type="email" id="empEmail"></div>
           <div class="field"><label>Phone</label><input type="tel" id="empPhone"></div>
@@ -712,7 +733,7 @@ let employees = {};      // { empId: {..} }
 let attendance = {};     // { empId: { "yyyy-mm": {"01":"P",...} } }
 let leaves = [];         // [ {id, empId, type, from, to, days, status, reason} ]
 let payroll = {};        // { empId: { "yyyy-mm": {basic,allowances,deductions,net} } }
-let departments = ["Statistical","QMS","Accounting","Procurement"];
+let departments = ["Statistical","QMS","Accounting","Procurement","IT/MIS"];
 let currentEditEmpId = null;
 let pendingDocs = [];
 let pendingPhoto = null;
@@ -934,6 +955,55 @@ function renderDashboard(){
         <div style="font-size:11px;color:var(--muted);">${ev.daysAway===0?'Today':ev.daysAway+' day(s) away'}</div>
       </div>
     </div>`).join('') : '<div style="font-size:12.5px;color:var(--muted);">Nothing coming up in the next 30 days.</div>';
+
+  renderOrgChart();
+}
+function renderOrgChart(){
+  const box = document.getElementById('orgChart');
+  if(!box) return;
+  const list = Object.values(employees);
+  if(list.length===0){
+    box.innerHTML = '<div style="font-size:12.5px;color:var(--muted);padding:6px 0;">Add employees and tick "Office supervisor" on whoever oversees everyone to see the org chart here.</div>';
+    return;
+  }
+  const supervisors = list.filter(e=>e.supervisor);
+  const rootHtml = supervisors.length ? supervisors.map(s=>`
+      <div class="org-root-box">
+        <div style="display:flex;align-items:center;gap:8px;">
+          ${avatarHtml(s,28)}
+          <div style="text-align:left;">
+            <div style="font-weight:800;">${s.name}</div>
+            <div style="font-size:10.5px;font-weight:600;opacity:.8;">${s.designation||'Chief Statistical Specialist (CSS)'}</div>
+          </div>
+        </div>
+      </div>`).join('<div style="height:8px;"></div>')
+    : '<div class="org-root-box">Chief Statistical Specialist (CSS)</div>';
+
+  const byDept = {};
+  departments.forEach(d=>{ byDept[d] = []; });
+  list.forEach(e=>{
+    if(e.supervisor) return; // already shown at the top, not repeated in a department branch
+    const d = e.department || 'Unassigned';
+    if(!byDept[d]) byDept[d] = [];
+    byDept[d].push(e);
+  });
+  const cards = Object.keys(byDept).map(d=>{
+    const staff = byDept[d];
+    const staffHtml = staff.length
+      ? `<div class="org-staff-list">${staff.map(o=>o.name).join(', ')}</div>`
+      : '<div class="org-staff-list">No staff yet.</div>';
+    return `
+      <div class="org-dept-card">
+        <div class="org-dept-head" style="color:${deptColor(d)}"><span>${d}</span><span style="color:var(--muted);font-weight:500;">${staff.length}</span></div>
+        ${staffHtml}
+      </div>`;
+  }).join('');
+  box.innerHTML = `
+    <div class="org-chart-wrap">
+      ${rootHtml}
+      <div class="org-stem"></div>
+      <div class="org-branch">${cards}</div>
+    </div>`;
 }
 function checkUpcoming(emp, dateStr, label, events){
   const d = new Date(dateStr); if(isNaN(d)) return;
@@ -990,6 +1060,7 @@ function openEmployeeModal(id){
     document.getElementById('empDesignation').value = e.designation||'';
     document.getElementById('empDept').value = e.department||departments[0];
     document.getElementById('empStatus').value = e.status||'Active';
+    document.getElementById('empSupervisor').checked = !!e.supervisor;
     document.getElementById('empEmail').value = e.email||'';
     document.getElementById('empPhone').value = e.phone||'';
     document.getElementById('empAddress').value = e.address||'';
@@ -1007,6 +1078,7 @@ function openEmployeeModal(id){
   } else {
     ['empId','empName','empDesignation','empEmail','empPhone','empAddress','empDob','empJoinDate','empEmName','empEmPhone'].forEach(f=>document.getElementById(f).value='');
     document.getElementById('empStatus').value='Active';
+    document.getElementById('empSupervisor').checked=false;
     document.getElementById('empBasic').value=0; document.getElementById('empAllow').value=0; document.getElementById('empDeduct').value=0;
     document.getElementById('empAnnual').value=15; document.getElementById('empSick').value=10; document.getElementById('empCasual').value=7;
   }
@@ -1083,6 +1155,7 @@ async function saveEmployee(){
     designation: document.getElementById('empDesignation').value.trim(),
     department: document.getElementById('empDept').value,
     status: document.getElementById('empStatus').value,
+    supervisor: document.getElementById('empSupervisor').checked,
     email: document.getElementById('empEmail').value.trim(),
     phone: document.getElementById('empPhone').value.trim(),
     address: document.getElementById('empAddress').value.trim(),
