@@ -681,22 +681,22 @@ window.storage = {
     }catch(e){ return null; }
   },
   async set(key, value){
-    try{
-      const r = await fetch('/api/kv', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ key, value })
-      });
-      if(!r.ok) return null;
-      return await r.json();
-    }catch(e){ return null; }
+    const r = await fetch('/api/kv', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ key, value })
+    });
+    if(!r.ok){
+      let detail = '';
+      try{ detail = (await r.json()).error || ''; }catch(e){}
+      throw new Error(`Storage set failed (${r.status})${detail ? ': ' + detail : ''}`);
+    }
+    return await r.json();
   },
   async delete(key){
-    try{
-      const r = await fetch('/api/kv?key=' + encodeURIComponent(key), { method: 'DELETE' });
-      if(!r.ok) return null;
-      return await r.json();
-    }catch(e){ return null; }
+    const r = await fetch('/api/kv?key=' + encodeURIComponent(key), { method: 'DELETE' });
+    if(!r.ok) throw new Error(`Storage delete failed (${r.status})`);
+    return await r.json();
   },
   async list(prefix){
     try{
@@ -774,11 +774,11 @@ async function loadAll(){
     departments = d ? JSON.parse(d.value) : departments;
   }catch(err){ /* keep defaults */ }
 }
-async function saveEmployees(){ try{ await window.storage.set('employees-data', JSON.stringify(employees), true); }catch(e){ toast('Save failed — check connection'); } }
-async function saveAttendance(){ try{ await window.storage.set('attendance-data', JSON.stringify(attendance), true); }catch(e){ toast('Save failed — check connection'); } }
-async function saveLeaves(){ try{ await window.storage.set('leaves-data', JSON.stringify(leaves), true); }catch(e){ toast('Save failed — check connection'); } }
-async function savePayroll(){ try{ await window.storage.set('payroll-data', JSON.stringify(payroll), true); }catch(e){ toast('Save failed — check connection'); } }
-async function saveDepartments(){ try{ await window.storage.set('departments-data', JSON.stringify(departments), true); }catch(e){ toast('Save failed — check connection'); } }
+async function saveEmployees(){ try{ await window.storage.set('employees-data', JSON.stringify(employees), true); }catch(e){ toast('Save failed: ' + e.message); } }
+async function saveAttendance(){ try{ await window.storage.set('attendance-data', JSON.stringify(attendance), true); }catch(e){ toast('Save failed: ' + e.message); } }
+async function saveLeaves(){ try{ await window.storage.set('leaves-data', JSON.stringify(leaves), true); }catch(e){ toast('Save failed: ' + e.message); } }
+async function savePayroll(){ try{ await window.storage.set('payroll-data', JSON.stringify(payroll), true); }catch(e){ toast('Save failed: ' + e.message); } }
+async function saveDepartments(){ try{ await window.storage.set('departments-data', JSON.stringify(departments), true); }catch(e){ toast('Save failed: ' + e.message); } }
 
 async function getPin(){
   try{
