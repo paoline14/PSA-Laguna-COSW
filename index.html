@@ -853,7 +853,6 @@ async function attemptLogin(){
   try{
     const real = await getPin();
     if(entered === real){
-      try{ await window.storage.set('session-active', true, false); }catch(e){ /* non-fatal */ }
       document.getElementById('loginScreen').style.display='none';
       document.getElementById('app').style.display='block';
       await loadAll();
@@ -869,28 +868,15 @@ async function attemptLogin(){
   }
 }
 async function logout(){
-  try{ await window.storage.delete('session-active', false); }catch(e){ /* non-fatal */ }
   document.getElementById('app').style.display='none';
   document.getElementById('loginScreen').style.display='flex';
   document.getElementById('pinInput').value='';
   document.getElementById('loginError').style.display='none';
   showView('dashboard');
 }
-async function checkExistingSession(){
-  try{
-    const r = await window.storage.get('session-active', false);
-    if(r && r.value){
-      document.getElementById('loginScreen').style.display='none';
-      document.getElementById('app').style.display='block';
-      await loadAll();
-      populateDeptSelectors();
-      renderAll();
-    }
-  }catch(e){
-    // no session yet, or storage unavailable — stay on the login screen
-  }
-}
-checkExistingSession();
+/* Session auto-login disabled on purpose: every visit should land on the PIN
+   screen. If you ever want persistent sessions back, restore the
+   checkExistingSession() function and its call here. */
 function updatePsaClock(){
   const el = document.getElementById('psaClock');
   if(!el) return;
