@@ -29,15 +29,16 @@ function parseValue(value) {
 }
 
 // What a non-admin gets back for employees-data: their own full record,
-// plus just enough about colleagues (name/department/photo) to render
-// avatars and chat — never salary, address, DOB, emergency contact, or
-// documents belonging to someone else.
+// plus enough about colleagues to render avatars, chat, and the office
+// birthday/anniversary board (name/department/photo/status/dob/joinDate)
+// — but never salary, address, emergency contact, or documents belonging
+// to someone else.
 function redactEmployeesForSelf(employees, myId) {
   const out = {};
   for (const [id, rec] of Object.entries(employees || {})) {
     out[id] = id === myId
       ? rec
-      : { id: rec.id, name: rec.name, department: rec.department, photo: rec.photo, status: rec.status };
+      : { id: rec.id, name: rec.name, department: rec.department, photo: rec.photo, status: rec.status, dob: rec.dob, joinDate: rec.joinDate };
   }
   return out;
 }
