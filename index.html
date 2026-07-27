@@ -392,6 +392,34 @@ label{font-size:11.5px;font-weight:600;color:var(--muted);text-transform:upperca
 .legend span{font-size:11.5px;color:var(--muted);display:flex;align-items:center;gap:6px;}
 .legend .sw{width:12px;height:12px;border-radius:3px;}
 
+/* Notifications */
+.notif-wrap{position:fixed;top:20px;right:28px;z-index:150;}
+.notif-bell{position:relative;width:38px;height:38px;border-radius:10px;background:var(--panel);border:1.5px solid var(--line);color:var(--text);font-size:16px;display:flex;align-items:center;justify-content:center;box-shadow:var(--shadow);transition:.12s;}
+.notif-bell:hover{border-color:var(--gold);}
+.notif-badge{position:absolute;top:-5px;right:-5px;background:var(--bad);color:#fff;font-size:9.5px;font-weight:700;min-width:16px;height:16px;border-radius:9px;display:flex;align-items:center;justify-content:center;padding:0 4px;font-family:'IBM Plex Mono',monospace;}
+.notif-panel{display:none;position:absolute;top:46px;right:0;width:320px;max-height:420px;overflow-y:auto;background:var(--panel);border:1px solid var(--line);border-radius:12px;box-shadow:0 20px 50px rgba(0,0,0,0.45);}
+.notif-panel.active{display:block;}
+.notif-panel-head{padding:14px 16px;border-bottom:1px solid var(--line);font-size:13px;font-weight:700;position:sticky;top:0;background:var(--panel);}
+.notif-section-lbl{padding:10px 16px 4px;font-size:10px;text-transform:uppercase;letter-spacing:0.6px;color:var(--muted);font-weight:700;}
+.notif-item{display:flex;align-items:flex-start;gap:10px;padding:9px 16px;cursor:pointer;transition:.1s;border-bottom:1px solid var(--line);}
+.notif-item:hover{background:rgba(255,176,32,0.06);}
+.notif-item .ic{font-size:15px;flex-shrink:0;margin-top:1px;}
+.notif-item .txt{flex:1;font-size:12.5px;line-height:1.4;}
+.notif-item .txt strong{color:var(--text);font-weight:600;}
+.notif-item .sub{font-size:11px;color:var(--muted);margin-top:1px;}
+.notif-empty{padding:24px 16px;text-align:center;color:var(--muted);font-size:12.5px;}
+
+/* Profile view */
+.profile-head{display:flex;align-items:center;gap:16px;margin-bottom:18px;}
+.profile-head .pname{font-size:17px;font-weight:700;color:var(--text);}
+.profile-head .prole{font-size:12.5px;color:var(--muted);margin-top:2px;}
+.profile-info-grid{display:grid;grid-template-columns:1fr 1fr;gap:12px 20px;}
+.profile-info-grid .pi-item .pi-lbl{font-size:10.5px;text-transform:uppercase;letter-spacing:0.5px;color:var(--muted);font-weight:600;margin-bottom:2px;}
+.profile-info-grid .pi-item .pi-val{font-size:13.5px;color:var(--text);}
+.doc-item .di-expiry{font-size:10.5px;color:var(--muted);white-space:nowrap;}
+.doc-item .di-expiry.soon{color:var(--gold-deep);font-weight:600;}
+.emp-cell-row{cursor:pointer;}
+
 .toast{
   position:fixed;bottom:22px;right:22px;background:var(--ink);color:#fff;padding:12px 18px;border-radius:8px;
   font-size:13px;box-shadow:0 10px 30px rgba(0,0,0,0.3);z-index:200;opacity:0;transform:translateY(8px);
@@ -546,6 +574,13 @@ tr:hover td{background:rgba(167,139,250,0.06);}
 
 <!-- ============ APP ============ -->
 <div id="app">
+<div class="notif-wrap" id="notifWrap">
+  <button class="notif-bell" id="notifBellBtn" onclick="toggleNotifPanel(event)"><span>🔔</span><span class="notif-badge" id="notifBadge" style="display:none;">0</span></button>
+  <div class="notif-panel" id="notifPanel">
+    <div class="notif-panel-head">Notifications</div>
+    <div id="notifPanelBody"></div>
+  </div>
+</div>
 <div class="shell">
   <div class="sidebar">
     <div class="brand">
@@ -559,6 +594,7 @@ tr:hover td{background:rgba(167,139,250,0.06);}
       <button data-view="dashboard" class="active" onclick="showView('dashboard')"><span class="ic">◈</span> Dashboard</button>
       <button data-view="orgchart" onclick="showView('orgchart')"><span class="ic">⛋</span> Org Chart</button>
       <button data-view="employees" onclick="showView('employees')"><span class="ic">☰</span> Employees</button>
+      <button id="navMyProfile" style="display:none;" onclick="openProfileView(currentUser && currentUser.employeeId)"><span class="ic">🧑</span> My Profile</button>
       <button data-view="attendance" onclick="showView('attendance')"><span class="ic">▦</span> Attendance</button>
       <button data-view="leaves" onclick="showView('leaves')"><span class="ic">◷</span> Leave</button>
       <button data-view="payroll" onclick="showView('payroll')"><span class="ic">$</span> Payroll</button>
@@ -591,7 +627,7 @@ tr:hover td{background:rgba(167,139,250,0.06);}
           <div id="deptBreakdown"></div>
         </div>
         <div class="panel">
-          <h3>Upcoming birthdays &amp; anniversaries <span class="tag">next 30 days</span></h3>
+          <h3>Upcoming events <span class="tag">birthdays, anniversaries &amp; expiring docs · next 30 days</span></h3>
           <div id="upcomingEvents"></div>
         </div>
       </div>
@@ -823,12 +859,60 @@ tr:hover td{background:rgba(167,139,250,0.06);}
           <select id="docType"><option>ID</option><option>Contract</option><option>Certificate</option><option>Resume</option><option>Other</option></select>
           <input type="text" id="docNote" placeholder="Note / reference">
         </div>
+        <div class="field-row" style="margin-top:10px;">
+          <div class="field" style="margin-bottom:0;"><label>Expiry date (optional)</label><input type="date" id="docExpiry"></div>
+          <div></div>
+        </div>
         <button class="btn btn-ghost" style="margin-top:10px;" onclick="addDocEntry()">+ Add document record</button>
       </div>
     </div>
     <div class="modal-foot">
       <button class="btn btn-ghost" onclick="closeModal('employeeModalOverlay')">Cancel</button>
       <button class="btn btn-primary" onclick="saveEmployee()">Save employee</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ PROFILE VIEW MODAL ============ -->
+<div class="modal-overlay" id="profileModalOverlay">
+  <div class="modal" style="width:640px;">
+    <div class="modal-head"><h3>Employee profile</h3><button class="modal-close" onclick="closeModal('profileModalOverlay')">✕</button></div>
+    <div class="modal-body">
+      <div class="profile-head">
+        <div id="profilePhotoBox"></div>
+        <div>
+          <div class="pname" id="profileName">—</div>
+          <div class="prole" id="profileRole">—</div>
+        </div>
+      </div>
+      <div class="tabs">
+        <button class="tab-btn active" data-ptab="contact" onclick="switchProfileTab('contact')">Contact Info</button>
+        <button class="tab-btn" data-ptab="docs" onclick="switchProfileTab('docs')">Documents</button>
+        <button class="tab-btn" data-ptab="att" onclick="switchProfileTab('att')">Attendance History</button>
+        <button class="tab-btn" data-ptab="leave" onclick="switchProfileTab('leave')">Leave History</button>
+      </div>
+      <div class="tab-pane active" id="ptab-contact">
+        <div class="profile-info-grid" id="profileContactGrid"></div>
+      </div>
+      <div class="tab-pane" id="ptab-docs">
+        <div id="profileDocList"></div>
+      </div>
+      <div class="tab-pane" id="ptab-att">
+        <table>
+          <thead><tr><th>Month</th><th>Present</th><th>Absent</th><th>Leave</th><th>Half-day</th></tr></thead>
+          <tbody id="profileAttBody"></tbody>
+        </table>
+      </div>
+      <div class="tab-pane" id="ptab-leave">
+        <table>
+          <thead><tr><th>Type</th><th>Dates</th><th>Days</th><th>Status</th></tr></thead>
+          <tbody id="profileLeaveBody"></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="closeModal('profileModalOverlay')">Close</button>
+      <button class="btn btn-primary" id="profileEditBtn" onclick="editFromProfile()">Edit employee</button>
     </div>
   </div>
 </div>
@@ -1106,6 +1190,8 @@ async function attemptLogin(){
       document.getElementById('loginScreen').style.display='none';
       document.getElementById('app').style.display='block';
       await loadAll();
+      try{ chatMessages = await loadChatMessages(); }catch(e){ /* ignore */ }
+      lastSeenChatCount = chatMessages.length;
       populateDeptSelectors();
       applyRoleAccess();
     } else {
@@ -1119,6 +1205,8 @@ async function attemptLogin(){
 }
 function logout(){
   stopChatPolling();
+  stopNotifPolling();
+  closeNotifPanel();
   currentUser = null;
   document.getElementById('app').style.display='none';
   document.getElementById('loginScreen').style.display='flex';
@@ -1142,8 +1230,11 @@ function applyRoleAccess(){
   }
   const savePayrollBtn = document.getElementById('savePayrollBtn');
   if(savePayrollBtn) savePayrollBtn.style.display = isAdmin ? '' : 'none';
+  const navMyProfile = document.getElementById('navMyProfile');
+  if(navMyProfile) navMyProfile.style.display = isAdmin ? 'none' : '';
   renderAll();
   showView(isAdmin ? 'dashboard' : 'attendance');
+  startNotifPolling();
 }
 /* Session auto-login disabled on purpose: every visit should land on the
    sign-in screen and require a username/password each time. */
@@ -1243,6 +1334,11 @@ function renderDashboard(){
   list.forEach(e=>{
     if(e.dob) checkUpcoming(e, e.dob, 'Birthday', events);
     if(e.joinDate) checkUpcoming(e, e.joinDate, 'Anniversary', events);
+    (e.documents||[]).forEach(d=>{
+      if(!d.expiry) return;
+      const diff = Math.round((new Date(d.expiry) - new Date(new Date().toDateString())) / 86400000);
+      if(diff>=0 && diff<=30) events.push({emp:e, label:`Document expiring: ${d.name}`, daysAway: diff});
+    });
   });
   events.sort((a,b)=>a.daysAway-b.daysAway);
   const evBox = document.getElementById('upcomingEvents');
@@ -1254,6 +1350,7 @@ function renderDashboard(){
         <div style="font-size:11px;color:var(--muted);">${ev.daysAway===0?'Today':ev.daysAway+' day(s) away'}</div>
       </div>
     </div>`).join('') : '<div style="font-size:12.5px;color:var(--muted);">Nothing coming up in the next 30 days.</div>';
+  updateNotifBadge();
 }
 function renderOrgChart(){
   const box = document.getElementById('orgChart');
@@ -1334,7 +1431,7 @@ function renderEmployeeTable(){
   const body = document.getElementById('empTableBody');
   document.getElementById('empEmptyState').style.display = Object.keys(employees).length ? 'none':'block';
   body.innerHTML = list.map(e=>`
-    <tr>
+    <tr class="emp-cell-row" onclick="openProfileView('${e.id}')">
       <td><div class="emp-cell">
         ${avatarHtml(e, 34)}
         <div><div class="name">${e.name}</div><div class="role">${e.designation||''} · <span class="mono">${e.id}</span></div></div>
@@ -1344,8 +1441,8 @@ function renderEmployeeTable(){
       <td class="mono" style="font-size:12px;">${e.joinDate||'—'}</td>
       <td><span class="pill ${e.status==='Active'?'good':'neutral'}">${e.status||'Active'}</span></td>
       <td><div class="actions-cell">
-        <button class="icon-btn" onclick="openEmployeeModal('${e.id}')">Edit</button>
-        <button class="icon-btn danger" onclick="deleteEmployee('${e.id}')">Delete</button>
+        <button class="icon-btn" onclick="event.stopPropagation();openEmployeeModal('${e.id}')">Edit</button>
+        <button class="icon-btn danger" onclick="event.stopPropagation();deleteEmployee('${e.id}')">Delete</button>
       </div></td>
     </tr>`).join('');
 }
@@ -1397,19 +1494,29 @@ function switchTab(tab){
 }
 function renderDocList(){
   const box = document.getElementById('docList');
-  box.innerHTML = pendingDocs.length ? pendingDocs.map((d,i)=>`
+  const now = new Date();
+  box.innerHTML = pendingDocs.length ? pendingDocs.map((d,i)=>{
+    let expiryHtml = '';
+    if(d.expiry){
+      const diff = Math.round((new Date(d.expiry) - now) / 86400000);
+      const soon = diff <= 30;
+      expiryHtml = `<span class="di-expiry ${soon?'soon':''}">${diff<0?'Expired':'Expires'} ${d.expiry}</span>`;
+    }
+    return `
     <div class="doc-item">
       <span class="di-type">${d.type}</span>
       <span class="di-name">${d.name}</span>
+      ${expiryHtml}
       <span style="color:var(--muted);font-size:11.5px;">${d.note||''}</span>
       <button class="icon-btn danger" onclick="removeDocEntry(${i})">✕</button>
-    </div>`).join('') : '<div style="font-size:12px;color:var(--muted);">No document records yet.</div>';
+    </div>`;
+  }).join('') : '<div style="font-size:12px;color:var(--muted);">No document records yet.</div>';
 }
 function addDocEntry(){
   const name = document.getElementById('docName').value.trim();
   if(!name){ toast('Enter a document name'); return; }
-  pendingDocs.push({ name, type: document.getElementById('docType').value, note: document.getElementById('docNote').value.trim(), date: new Date().toISOString().slice(0,10) });
-  document.getElementById('docName').value=''; document.getElementById('docNote').value='';
+  pendingDocs.push({ name, type: document.getElementById('docType').value, note: document.getElementById('docNote').value.trim(), expiry: document.getElementById('docExpiry').value || '', date: new Date().toISOString().slice(0,10) });
+  document.getElementById('docName').value=''; document.getElementById('docNote').value=''; document.getElementById('docExpiry').value='';
   renderDocList();
 }
 function removeDocEntry(i){ pendingDocs.splice(i,1); renderDocList(); }
@@ -1482,6 +1589,93 @@ async function deleteEmployee(id){
   await saveEmployees();
   renderEmployeeTable(); renderDashboard(); renderOrgChart(); renderPayroll(); renderLeaves();
   toast('Employee deleted');
+}
+
+/* ===================== EMPLOYEE PROFILE VIEW ===================== */
+let currentProfileEmpId = null;
+function openProfileView(id){
+  if(!id || !employees[id]){ toast('No profile found'); return; }
+  const isAdmin = currentUser && currentUser.role === 'admin';
+  if(!isAdmin && id !== currentUser.employeeId){ toast('You can only view your own profile'); return; }
+  currentProfileEmpId = id;
+  const e = employees[id];
+  document.getElementById('profileName').textContent = e.name;
+  document.getElementById('profileRole').textContent = `${e.designation||'—'} · ${e.department||''} · ${e.id}`;
+  document.getElementById('profilePhotoBox').innerHTML = avatarHtml(e, 60);
+  document.getElementById('profileEditBtn').style.display = isAdmin ? '' : 'none';
+  switchProfileTab('contact');
+  renderProfileContact(e);
+  renderProfileDocs(e);
+  renderProfileAttendance(e);
+  renderProfileLeaves(e);
+  document.getElementById('profileModalOverlay').classList.add('active');
+}
+function switchProfileTab(tab){
+  document.querySelectorAll('[data-ptab]').forEach(b=>b.classList.toggle('active', b.dataset.ptab===tab));
+  document.querySelectorAll('#ptab-contact,#ptab-docs,#ptab-att,#ptab-leave').forEach(p=>p.classList.remove('active'));
+  document.getElementById('ptab-'+tab).classList.add('active');
+}
+function profileField(lbl, val){
+  return `<div class="pi-item"><div class="pi-lbl">${lbl}</div><div class="pi-val">${val || '—'}</div></div>`;
+}
+function renderProfileContact(e){
+  const grid = document.getElementById('profileContactGrid');
+  grid.innerHTML = [
+    profileField('Email', e.email),
+    profileField('Phone', e.phone),
+    profileField('Address', e.address),
+    profileField('Date of birth', e.dob),
+    profileField('Joined on', e.joinDate),
+    profileField('Status', e.status),
+    profileField('Emergency contact', e.emergency && e.emergency.name),
+    profileField('Emergency phone', e.emergency && e.emergency.phone),
+  ].join('');
+}
+function renderProfileDocs(e){
+  const box = document.getElementById('profileDocList');
+  const docs = e.documents || [];
+  if(!docs.length){ box.innerHTML = '<div style="font-size:12px;color:var(--muted);">No document records.</div>'; return; }
+  const now = new Date();
+  box.innerHTML = docs.map(d=>{
+    let expiryHtml = '';
+    if(d.expiry){
+      const diff = Math.round((new Date(d.expiry) - now) / 86400000);
+      const soon = diff <= 30;
+      expiryHtml = `<span class="di-expiry ${soon?'soon':''}">${diff<0?'Expired':'Expires'} ${d.expiry}</span>`;
+    }
+    return `<div class="doc-item">
+      <span class="di-type">${d.type}</span>
+      <span class="di-name">${d.name}</span>
+      ${expiryHtml}
+      <span style="color:var(--muted);font-size:11.5px;">${d.note||''}</span>
+    </div>`;
+  }).join('');
+}
+function renderProfileAttendance(e){
+  const body = document.getElementById('profileAttBody');
+  const hist = attendance[e.id] || {};
+  const months = Object.keys(hist).sort().reverse().slice(0,6);
+  if(!months.length){ body.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--muted);">No attendance recorded yet.</td></tr>'; return; }
+  body.innerHTML = months.map(mk=>{
+    const rec = hist[mk] || {};
+    const counts = {P:0,A:0,L:0,H:0};
+    Object.values(rec).forEach(v=>{ if(counts[v]!==undefined) counts[v]++; });
+    return `<tr><td>${mk}</td><td>${counts.P}</td><td>${counts.A}</td><td>${counts.L}</td><td>${counts.H}</td></tr>`;
+  }).join('');
+}
+function renderProfileLeaves(e){
+  const body = document.getElementById('profileLeaveBody');
+  const list = leaves.filter(l=>l.empId===e.id).slice().reverse();
+  if(!list.length){ body.innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--muted);">No leave history.</td></tr>'; return; }
+  body.innerHTML = list.map(l=>{
+    const statusPill = l.status==='Approved' ? 'good' : l.status==='Rejected' ? 'bad' : 'warn';
+    return `<tr><td>${l.type}</td><td class="mono" style="font-size:11.5px;">${l.from} → ${l.to}</td><td>${l.days}</td><td><span class="pill ${statusPill}">${l.status}</span></td></tr>`;
+  }).join('');
+}
+function editFromProfile(){
+  if(!currentProfileEmpId) return;
+  closeModal('profileModalOverlay');
+  openEmployeeModal(currentProfileEmpId);
 }
 
 /* ===================== ATTENDANCE ===================== */
@@ -1850,6 +2044,9 @@ async function renderChat(forceScroll){
     </div>`;
   }).join('');
   if(wasAtBottom) box.scrollTop = box.scrollHeight;
+  const chatViewActive = document.getElementById('view-chat') && document.getElementById('view-chat').classList.contains('active');
+  if(chatViewActive) lastSeenChatCount = chatMessages.length;
+  updateNotifBadge();
 }
 function escapeHtml(s){
   return (s||'').replace(/[&<>"']/g, c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -1920,6 +2117,115 @@ function startChatPolling(){
 }
 function stopChatPolling(){
   if(chatPollTimer){ clearInterval(chatPollTimer); chatPollTimer = null; }
+}
+
+/* ===================== NOTIFICATIONS ===================== */
+let lastSeenChatCount = 0;
+let notifPollTimer = null;
+function computeNotifications(){
+  const isAdmin = currentUser && currentUser.role === 'admin';
+  const myId = currentUser && currentUser.employeeId;
+  const items = { leaves: [], chat: [], events: [] };
+  if(isAdmin){
+    items.leaves = leaves.filter(l=>l.status==='Pending').slice().reverse().map(l=>{
+      const e = employees[l.empId];
+      return { text: `${e?e.name:'Unknown'} requested ${l.type} leave`, sub: `${l.from} → ${l.to} (${l.days}d)`, action: ()=>{ closeNotifPanel(); showView('leaves'); } };
+    });
+  } else if(myId){
+    const myPending = leaves.filter(l=>l.empId===myId && l.status==='Pending').length;
+    if(myPending){
+      items.leaves = [{ text: `You have ${myPending} leave request(s) awaiting approval`, sub:'', action: ()=>{ closeNotifPanel(); showView('leaves'); } }];
+    }
+  }
+  const unread = Math.max(0, chatMessages.length - lastSeenChatCount);
+  if(unread){
+    const recent = chatMessages.slice(-unread).reverse().slice(0,4);
+    items.chat = recent.map(m=>({ text: `${m.senderName}: ${(m.text||'📎 attachment').slice(0,50)}`, sub: fmtChatTime(m.ts), action: ()=>{ closeNotifPanel(); showView('chat'); } }));
+  }
+  const evList = [];
+  const empList = isAdmin ? Object.values(employees) : (employees[myId] ? [employees[myId]] : []);
+  empList.forEach(e=>{
+    if(e.dob) checkUpcoming(e, e.dob, 'Birthday', evList);
+    if(e.joinDate) checkUpcoming(e, e.joinDate, 'Anniversary', evList);
+    (e.documents||[]).forEach(d=>{
+      if(!d.expiry) return;
+      const diff = Math.round((new Date(d.expiry) - new Date(new Date().toDateString())) / 86400000);
+      if(diff>=0 && diff<=30) evList.push({ emp:e, label:`Document expiring: ${d.name}`, daysAway: diff });
+    });
+  });
+  evList.sort((a,b)=>a.daysAway-b.daysAway);
+  items.events = evList.slice(0,6).map(ev=>({
+    text: `${ev.emp.name} — ${ev.label}`,
+    sub: ev.daysAway===0 ? 'Today' : ev.daysAway+' day(s) away',
+    action: ()=>{ closeNotifPanel(); if(isAdmin) showView('dashboard'); else openProfileView(myId); }
+  }));
+  return items;
+}
+function updateNotifBadge(){
+  const badge = document.getElementById('notifBadge');
+  if(!badge || !currentUser) return;
+  const items = computeNotifications();
+  const count = items.leaves.length + items.chat.length + items.events.length;
+  badge.style.display = count ? '' : 'none';
+  badge.textContent = count > 9 ? '9+' : count;
+}
+function renderNotifPanel(){
+  const body = document.getElementById('notifPanelBody');
+  if(!body) return;
+  const items = computeNotifications();
+  const section = (label, ic, arr) => {
+    if(!arr.length) return '';
+    return `<div class="notif-section-lbl">${label}</div>` + arr.map((it,i)=>
+      `<div class="notif-item" data-sec="${label}" data-i="${i}"><span class="ic">${ic}</span><div class="txt"><strong>${it.text}</strong>${it.sub?`<div class="sub">${it.sub}</div>`:''}</div></div>`
+    ).join('');
+  };
+  let html = '';
+  html += section('Pending Approvals','⏳', items.leaves);
+  html += section('Chat','🗨', items.chat);
+  html += section('Upcoming','🎂', items.events);
+  body.innerHTML = html || '<div class="notif-empty">You\'re all caught up.</div>';
+  window._notifItems = items;
+  body.querySelectorAll('.notif-item').forEach(el=>{
+    el.addEventListener('click', ()=>{
+      const label = el.dataset.sec, i = Number(el.dataset.i);
+      const map = { 'Pending Approvals':'leaves', 'Chat':'chat', 'Upcoming':'events' };
+      const arr = window._notifItems[map[label]];
+      if(arr && arr[i] && arr[i].action) arr[i].action();
+    });
+  });
+}
+function toggleNotifPanel(e){
+  if(e) e.stopPropagation();
+  const panel = document.getElementById('notifPanel');
+  if(panel.classList.contains('active')){ closeNotifPanel(); return; }
+  renderNotifPanel();
+  panel.classList.add('active');
+}
+function closeNotifPanel(){
+  const panel = document.getElementById('notifPanel');
+  if(panel) panel.classList.remove('active');
+}
+document.addEventListener('click', (e)=>{
+  const wrap = document.getElementById('notifWrap');
+  if(wrap && !wrap.contains(e.target)) closeNotifPanel();
+});
+async function pollNotifState(){
+  if(!currentUser) return;
+  try{
+    const chatViewActive = document.getElementById('view-chat') && document.getElementById('view-chat').classList.contains('active');
+    if(!chatViewActive){
+      chatMessages = await loadChatMessages();
+    }
+  }catch(e){ /* keep existing */ }
+  updateNotifBadge();
+}
+function startNotifPolling(){
+  stopNotifPolling();
+  pollNotifState();
+  notifPollTimer = setInterval(pollNotifState, 6000);
+}
+function stopNotifPolling(){
+  if(notifPollTimer){ clearInterval(notifPollTimer); notifPollTimer = null; }
 }
 
 /* ===================== SETTINGS ===================== */
