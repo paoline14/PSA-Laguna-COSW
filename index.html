@@ -1314,13 +1314,9 @@ async function loadChatMessages(){
 }
 async function saveChatMessages(){ try{ await window.storage.set('chat-messages-data', JSON.stringify(chatMessages), true); }catch(e){ toast('Send failed: ' + e.message); } }
 
-async function loadUsers(){
-  try{
-    const u = await window.storage.get('users-data', true);
-    users = parseStored(u && u.value, {});
-  }catch(e){ users = {}; }
-}
-async function saveUsers(){ try{ await window.storage.set('users-data', JSON.stringify(users), true); }catch(e){ toast('Save failed: ' + e.message); throw e; } }
+/* users-data is no longer reachable through /api/kv — accounts are now
+   created/verified server-side via /api/signup and /api/login, which are
+   the only places passwords are checked or written. */
 
 async function preloadSignupDepartments(){
   try{
@@ -1467,60 +1463,40 @@ async function attemptSignup(){
   const pw2 = document.getElementById('signupPassword2').value;
   if(!username || !pw){ errBox.textContent = 'Username and password are required.'; errBox.style.display='block'; return; }
   if(pw !== pw2){ errBox.textContent = 'Passwords do not match.'; errBox.style.display='block'; return; }
+  if(pw.length < 8){ errBox.textContent = 'Password must be at least 8 characters.'; errBox.style.display='block'; return; }
 
-  try{
-    await loadUsers();
-  }catch(e){
-    errBox.textContent = 'Could not connect to storage. Try reloading this page.';
-    errBox.style.display='block';
-    return;
-  }
-  if(users[username]){ errBox.textContent = 'That username is already taken.'; errBox.style.display='block'; return; }
-
-  let employeeId = null;
+  const payload = { username, password: pw, role };
   if(role === 'employee'){
     const name = document.getElementById('signupName').value.trim();
     if(!name){ errBox.textContent = 'Full name is required.'; errBox.style.display='block'; return; }
-    try{
-      const e = await window.storage.get('employees-data', true);
-      employees = parseStored(e && e.value, {});
-    }catch(err){ employees = employees || {}; }
-    employeeId = 'EMP-' + String(Object.keys(employees).length+1).padStart(2,'0') + '-' + uid().slice(-3).toUpperCase();
-    employees[employeeId] = {
-      id: employeeId,
-      name,
-      designation: document.getElementById('signupDesignation').value.trim(),
-      department: document.getElementById('signupDept').value,
-      status: 'Active',
-      supervisor: false,
-      email: '', phone: '', address: '',
-      dob: document.getElementById('signupDob').value || '',
-      joinDate: document.getElementById('signupJoinDate').value || new Date().toISOString().slice(0,10),
-      emergency: { name:'', phone:'' },
-      salary: { basic:0, allowances:0, deductions:0 },
-      leaveBalance: { annual:15, sick:15, casual:7 },
-      documents: [], photo: pendingSignupPhoto
-    };
-    try{
-      await saveEmployees();
-    }catch(err){
-      errBox.textContent = 'Could not save your account to storage (' + err.message + '). Nothing was created — please check your KV database is connected and try again.';
-      errBox.style.display='block';
-      delete employees[employeeId];
-      return;
-    }
+    payload.name = name;
+    payload.designation = document.getElementById('signupDesignation').value.trim();
+    payload.department = document.getElementById('signupDept').value;
+    /* Note: the server-side /api/signup endpoint currently only accepts
+       name/designation/department. DOB, join date, and photo entered on
+       this form aren't sent to the server yet — an admin can fill those
+       in afterwards from the Employees view. */
   }
 
-  users[username] = { username, password: pw, role, employeeId, createdAt: new Date().toISOString() };
+  let data;
   try{
-    await saveUsers();
+    const r = await fetch('/api/signup', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    data = await r.json().catch(()=>({}));
+    if(!r.ok){
+      errBox.textContent = data.error || ('Signup failed (' + r.status + ')');
+      errBox.style.display='block';
+      return;
+    }
   }catch(err){
-    errBox.textContent = 'Could not save your account to storage (' + err.message + '). Nothing was created — please check your KV database is connected and try again.';
+    errBox.textContent = 'Could not connect to the server. Try reloading this page.';
     errBox.style.display='block';
-    delete users[username];
-    if(employeeId) delete employees[employeeId];
     return;
   }
+
   toast('Account created — you can sign in now.');
   document.getElementById('signupUsername').value='';
   document.getElementById('signupPassword').value='';
@@ -1541,27 +1517,32 @@ async function attemptLogin(){
   const errBox = document.getElementById('loginError');
   errBox.style.display='none';
   try{
-    await loadUsers();
-    const u = users[username];
-    if(u && u.password === pw){
-      currentUser = u;
-      document.getElementById('loginScreen').style.display='none';
-      document.getElementById('app').style.display='block';
-      await loadAll();
-      try{ chatMessages = await loadChatMessages(); }catch(e){ /* ignore */ }
-      lastSeenChatCount = chatMessages.length;
-      populateDeptSelectors();
-      applyRoleAccess();
-    } else {
-      errBox.textContent = 'Incorrect username or password.';
+    const r = await fetch('/api/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password: pw })
+    });
+    const data = await r.json().catch(()=>({}));
+    if(!r.ok){
+      errBox.textContent = data.error || 'Incorrect username or password.';
       errBox.style.display='block';
+      return;
     }
+    currentUser = data; // { username, role, employeeId }
+    document.getElementById('loginScreen').style.display='none';
+    document.getElementById('app').style.display='block';
+    await loadAll();
+    try{ chatMessages = await loadChatMessages(); }catch(e){ /* ignore */ }
+    lastSeenChatCount = chatMessages.length;
+    populateDeptSelectors();
+    applyRoleAccess();
   }catch(e){
-    errBox.textContent = 'Could not connect to storage. Try reloading this page.';
+    errBox.textContent = 'Could not connect to the server. Try reloading this page.';
     errBox.style.display='block';
   }
 }
-function logout(){
+async function logout(){
+  try{ await fetch('/api/logout', { method: 'POST' }); }catch(e){ /* clear client state regardless */ }
   stopChatPolling();
   stopNotifPolling();
   closeNotifPanel();
@@ -2668,14 +2649,16 @@ async function changePin(){
   const cur = document.getElementById('curPin').value;
   const next = document.getElementById('newPin').value.trim();
   if(!currentUser){ toast('You must be signed in.'); return; }
-  await loadUsers();
-  const u = users[currentUser.username];
-  if(!u || cur !== u.password){ toast('Current password is incorrect'); return; }
   if(!next){ toast('Enter a new password'); return; }
-  u.password = next;
-  users[currentUser.username] = u;
-  currentUser = u;
-  await saveUsers();
+  try{
+    const r = await fetch('/api/change-password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ currentPassword: cur, newPassword: next })
+    });
+    const data = await r.json().catch(()=>({}));
+    if(!r.ok){ toast(data.error || 'Could not update password'); return; }
+  }catch(e){ toast('Could not connect to the server'); return; }
   document.getElementById('curPin').value=''; document.getElementById('newPin').value='';
   toast('Password updated');
 }
@@ -2687,11 +2670,12 @@ async function resetAllData(){
   toast('All data erased');
 }
 async function resetAllAccounts(){
-  if(!confirm('This will permanently delete every sign-in account and every employee profile, including your own. Everyone will need to sign up again with a new (or the same) username and password. Continue?')) return;
-  if(!confirm('Are you sure? This cannot be undone.')) return;
-  users = {};
+  /* users-data can no longer be wiped from the browser now that /api/kv
+     blocks direct access to it — this needs its own protected server
+     endpoint (e.g. /api/reset-accounts) before it can work again. */
+  toast('This feature needs a server-side update before it can run — ask your dev to add a reset-accounts endpoint.');
+  return;
   employees = {};
-  await saveUsers();
   await saveEmployees();
   currentUser = null;
   toast('All accounts deleted. Please sign up again.');
