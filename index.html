@@ -250,6 +250,50 @@ nav.nav{display:flex;flex-direction:column;gap:2px;flex:1;}
 .chat-msg.me .chat-file-chip .fname{color:#1a1206;}
 .chat-file-chip .fsize{font-size:10.5px;color:var(--muted);}
 
+/* Emoji picker (composer) */
+.chat-emoji-btn{
+  border:1.5px solid var(--line);border-radius:10px;width:40px;height:40px;background:var(--paper);color:var(--muted);
+  font-size:16px;transition:all .15s;flex-shrink:0;display:flex;align-items:center;justify-content:center;
+}
+.chat-emoji-btn:hover{border-color:var(--gold);color:var(--gold);}
+.chat-emoji-pop{
+  display:none;position:absolute;bottom:calc(100% + 8px);left:16px;width:264px;max-height:220px;overflow-y:auto;
+  background:var(--panel);border:1.5px solid var(--line);border-radius:12px;box-shadow:var(--shadow);padding:10px;
+  grid-template-columns:repeat(8,1fr);gap:2px;z-index:20;
+}
+.chat-emoji-pop.active{display:grid;}
+.chat-emoji-pop button{background:none;border:none;font-size:18px;border-radius:6px;padding:4px 0;line-height:1.4;transition:background .1s;}
+.chat-emoji-pop button:hover{background:rgba(255,176,32,0.16);}
+.chat-input-row{position:relative;}
+
+/* Message reactions */
+.chat-msg{position:relative;}
+.chat-msg-react-trigger{
+  display:none;align-items:center;justify-content:center;width:24px;height:24px;border-radius:50%;
+  background:var(--panel);border:1px solid var(--line);color:var(--muted);font-size:12px;flex-shrink:0;align-self:center;
+}
+.chat-msg:hover .chat-msg-react-trigger{display:flex;}
+.chat-msg-react-trigger:hover{border-color:var(--gold);color:var(--gold);}
+.chat-reactpick-pop{
+  display:none;position:absolute;bottom:100%;margin-bottom:6px;background:var(--panel);border:1.5px solid var(--line);
+  border-radius:20px;box-shadow:var(--shadow);padding:6px 8px;gap:2px;z-index:25;white-space:nowrap;
+}
+.chat-msg.me .chat-reactpick-pop{right:0;}
+.chat-msg:not(.me) .chat-reactpick-pop{left:34px;}
+.chat-reactpick-pop.active{display:inline-flex;}
+.chat-reactpick-pop button{background:none;border:none;font-size:17px;padding:3px 4px;border-radius:8px;transition:transform .1s, background .1s;}
+.chat-reactpick-pop button:hover{background:rgba(255,176,32,0.16);transform:scale(1.15);}
+.chat-reactions{display:flex;flex-wrap:wrap;gap:4px;margin-top:2px;}
+.chat-msg.me .chat-reactions{justify-content:flex-end;}
+.chat-reaction-pill{
+  display:flex;align-items:center;gap:3px;background:var(--panel);border:1.5px solid var(--line);border-radius:12px;
+  padding:1px 7px;font-size:11.5px;color:var(--text);transition:all .12s;
+}
+.chat-reaction-pill:hover{border-color:var(--gold);}
+.chat-reaction-pill.mine{background:rgba(255,176,32,0.18);border-color:var(--gold);}
+.chat-reaction-pill .cnt{font-size:10.5px;color:var(--muted);font-weight:600;}
+.chat-reaction-pill.mine .cnt{color:var(--gold-deep);}
+
 .event-item{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--line);font-size:13px;}
 .event-item:last-child{border-bottom:none;}
 .event-item .badge-id{font-size:10px;padding:3px 6px;}
@@ -668,6 +712,8 @@ tr:hover td{background:rgba(167,139,250,0.06);}
           <div class="chat-input-row">
             <input type="file" id="chatFileInput" style="display:none;" onchange="handleChatFileSelect(event)">
             <button class="chat-attach-btn" title="Attach a file or picture" onclick="document.getElementById('chatFileInput').click()">📎</button>
+            <button class="chat-emoji-btn" title="Add an emoji" onclick="toggleComposerEmoji(event)">😊</button>
+            <div class="chat-emoji-pop" id="composerEmojiPop"></div>
             <textarea id="chatInput" rows="1" placeholder="Write a message…" onkeydown="handleChatKeydown(event)"></textarea>
             <button class="chat-send-btn" onclick="sendChatMessage()">Send</button>
           </div>
@@ -1709,6 +1755,72 @@ function chatAttachmentHtml(att, mine){
       </div>
     </a>`;
 }
+const EMOJI_LIST = ['😀','😁','😂','🤣','😊','😍','😘','😉','😎','🤩','🙂','😇','🤗','🤔','😐','😴','😢','😭','😡','😱','🥳','😅','😆','🙄','😬','🤝','👍','👎','👏','🙏','💪','👌','✌️','🤞','👋','❤️','🧡','💛','💚','💙','💜','🔥','⭐','✨','🎉','🎊','💯','✅','❌','⚠️','❓','❗','😷','🤒','☕','🍕','🎂','⏰','📅','📌','💼','📈','📉','🥲'];
+const QUICK_REACTIONS = ['👍','❤️','😂','😮','😢','🙏'];
+let composerEmojiPopReady = false;
+function toggleComposerEmoji(e){
+  e.stopPropagation();
+  closeAllReactPops();
+  const pop = document.getElementById('composerEmojiPop');
+  if(!pop) return;
+  if(!composerEmojiPopReady){
+    pop.innerHTML = EMOJI_LIST.map(em=>`<button type="button" onclick="insertComposerEmoji('${em}')">${em}</button>`).join('');
+    composerEmojiPopReady = true;
+  }
+  pop.classList.toggle('active');
+}
+function insertComposerEmoji(emoji){
+  const input = document.getElementById('chatInput');
+  const start = input.selectionStart != null ? input.selectionStart : input.value.length;
+  const end = input.selectionEnd != null ? input.selectionEnd : input.value.length;
+  input.value = input.value.slice(0,start) + emoji + input.value.slice(end);
+  const pos = start + emoji.length;
+  input.focus();
+  input.setSelectionRange(pos,pos);
+}
+function closeAllReactPops(){
+  document.querySelectorAll('.chat-reactpick-pop.active').forEach(p=>p.classList.remove('active'));
+}
+document.addEventListener('click', (e)=>{
+  if(!e.target.closest('.chat-reactpick-pop') && !e.target.closest('.chat-msg-react-trigger')) closeAllReactPops();
+  if(!e.target.closest('.chat-emoji-pop') && !e.target.closest('.chat-emoji-btn')){
+    const p = document.getElementById('composerEmojiPop');
+    if(p) p.classList.remove('active');
+  }
+});
+function toggleMsgReactPop(msgId, e){
+  e.stopPropagation();
+  const pop = document.getElementById('reactpop-'+msgId);
+  if(!pop) return;
+  const wasActive = pop.classList.contains('active');
+  closeAllReactPops();
+  const composerPop = document.getElementById('composerEmojiPop');
+  if(composerPop) composerPop.classList.remove('active');
+  if(!wasActive) pop.classList.add('active');
+}
+async function reactToMessage(msgId, emoji){
+  if(!currentUser) return;
+  const me = myChatIdentity();
+  try{ chatMessages = await loadChatMessages(); }catch(e){ /* use local copy */ }
+  const m = chatMessages.find(x=>x.id===msgId);
+  if(!m) return;
+  m.reactions = m.reactions || {};
+  const arr = m.reactions[emoji] = m.reactions[emoji] || [];
+  const idx = arr.indexOf(me.id);
+  if(idx>=0) arr.splice(idx,1); else arr.push(me.id);
+  if(!arr.length) delete m.reactions[emoji];
+  closeAllReactPops();
+  await saveChatMessages();
+  renderChat(false);
+}
+function chatReactionsHtml(m, me){
+  const reactions = m.reactions || {};
+  const pills = Object.keys(reactions).filter(em=>reactions[em] && reactions[em].length).map(em=>{
+    const mineReact = reactions[em].includes(me.id);
+    return `<button class="chat-reaction-pill ${mineReact ? 'mine':''}" onclick="reactToMessage('${m.id}','${em}')" title="${reactions[em].length} reacted">${em}<span class="cnt">${reactions[em].length}</span></button>`;
+  }).join('');
+  return pills ? `<div class="chat-reactions">${pills}</div>` : '';
+}
 async function renderChat(forceScroll){
   const box = document.getElementById('chatMessages');
   if(!box) return;
@@ -1730,8 +1842,11 @@ async function renderChat(forceScroll){
         ${mine ? '' : `<div class="chat-sender">${m.senderName}</div>`}
         ${m.attachment ? chatAttachmentHtml(m.attachment, mine) : ''}
         ${m.text ? `<div class="chat-bubble">${escapeHtml(m.text)}</div>` : ''}
+        ${chatReactionsHtml(m, me)}
         <div class="chat-time">${fmtChatTime(m.ts)}</div>
       </div>
+      <button class="chat-msg-react-trigger" title="React" onclick="toggleMsgReactPop('${m.id}', event)">🙂</button>
+      <div class="chat-reactpick-pop" id="reactpop-${m.id}">${QUICK_REACTIONS.map(em=>`<button type="button" onclick="reactToMessage('${m.id}','${em}')">${em}</button>`).join('')}</div>
     </div>`;
   }).join('');
   if(wasAtBottom) box.scrollTop = box.scrollHeight;
