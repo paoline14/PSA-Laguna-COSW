@@ -1057,7 +1057,7 @@ function logout(){
 /* ===================== ROLE-BASED ACCESS ===================== */
 function applyRoleAccess(){
   const isAdmin = currentUser && currentUser.role === 'admin';
-  const adminOnlyViews = ['dashboard','orgchart','employees','settings'];
+  const adminOnlyViews = ['dashboard','employees','settings'];
   document.querySelectorAll('.nav button[data-view]').forEach(btn=>{
     btn.style.display = (!isAdmin && adminOnlyViews.includes(btn.dataset.view)) ? 'none' : '';
   });
