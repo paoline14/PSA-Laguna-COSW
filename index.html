@@ -727,12 +727,24 @@ tr:hover td{background:rgba(167,139,250,0.06);}
           <option value="admin">Office Admin / HR</option>
         </select>
         <div id="signupEmployeeFields">
+          <div class="field" style="display:flex;align-items:center;gap:16px;margin-top:10px;">
+            <div id="signupPhotoPreviewBox"></div>
+            <div>
+              <input type="file" id="signupPhotoInput" accept="image/*" style="display:none;" onchange="handleSignupPhotoSelect(event)">
+              <button type="button" class="login-tab" style="padding:7px 12px;" onclick="document.getElementById('signupPhotoInput').click()">Upload photo</button>
+              <button type="button" class="login-tab" style="padding:7px 12px;" onclick="removeSignupPhoto()">Remove</button>
+            </div>
+          </div>
           <label style="margin-top:10px;">Full name</label>
-          <input type="text" id="signupName" placeholder="Full name">
+          <input type="text" id="signupName" placeholder="Full name" oninput="updateSignupPhotoPreview()">
           <label style="margin-top:10px;">Department</label>
           <select id="signupDept"></select>
           <label style="margin-top:10px;">Designation</label>
           <input type="text" id="signupDesignation" placeholder="e.g. Statistical Clerk">
+          <label style="margin-top:10px;">Birthdate</label>
+          <input type="date" id="signupDob">
+          <label style="margin-top:10px;">Start date</label>
+          <input type="date" id="signupJoinDate">
         </div>
         <label style="margin-top:10px;">Username</label>
         <input type="text" id="signupUsername" placeholder="Choose a username" autocomplete="username">
@@ -965,6 +977,8 @@ tr:hover td{background:rgba(167,139,250,0.06);}
         <h3>Data</h3>
         <p style="font-size:12.5px;color:var(--muted);margin:0 0 12px;">Records are stored centrally and shared across accounts — admins can see and manage everyone's records, while employees can only view and update their own. There are no file uploads; documents are logged as text records (name, type, note), not attached files.</p>
         <button class="btn btn-danger" onclick="resetAllData()">Erase all data</button>
+        <button class="btn btn-danger" style="margin-left:8px;" onclick="resetAllAccounts()">Delete all accounts</button>
+        <p style="font-size:12.5px;color:var(--muted);margin:12px 0 0;">"Delete all accounts" removes every sign-in (including this one) and every employee profile, so everyone — including you — will need to sign up again from the Sign Up tab. It does not touch attendance, leave or payroll history.</p>
       </div>
     </div>
 
@@ -1181,10 +1195,8 @@ window.storage = {
 };
 
 /* ===================== STATE ===================== */
-// There is no client-side `users` store anymore — passwords never reach the
-// browser. currentUser is just whatever /api/login or /api/signup returns:
-// { username, role, employeeId }.
-let currentUser = null;
+let users = {};          // { username: {username, password, role, employeeId} }
+let currentUser = null;  // the signed-in user's record from `users`
 let employees = {};      // { empId: {..} }
 let attendance = {};     // { empId: { "yyyy-mm": {"01":"P",...} } }
 let leaves = [];         // [ {id, empId, type, from, to, days, status, reason} ]
@@ -1197,6 +1209,7 @@ let chatPollTimer = null;
 let currentEditEmpId = null;
 let pendingDocs = [];
 let pendingPhoto = null;
+let pendingSignupPhoto = null;
 let deptColorCache = {};
 
 const DEPT_PALETTE = ["#3DC7FF","#FFB020","#2ECC71","#FF6FB5","#A78BFA","#FF7A18","#2DD4BF","#FF4D6D"];
@@ -1300,6 +1313,14 @@ async function loadChatMessages(){
   }catch(e){ return chatMessages; }
 }
 async function saveChatMessages(){ try{ await window.storage.set('chat-messages-data', JSON.stringify(chatMessages), true); }catch(e){ toast('Send failed: ' + e.message); } }
+
+async function loadUsers(){
+  try{
+    const u = await window.storage.get('users-data', true);
+    users = parseStored(u && u.value, {});
+  }catch(e){ users = {}; }
+}
+async function saveUsers(){ try{ await window.storage.set('users-data', JSON.stringify(users), true); }catch(e){ toast('Save failed: ' + e.message); } }
 
 async function preloadSignupDepartments(){
   try{
@@ -1430,7 +1451,7 @@ function switchAuthTab(tab){
   document.getElementById('signUpPane').style.display = tab==='signup' ? 'block':'none';
   document.getElementById('loginError').style.display='none';
   document.getElementById('signupError').style.display='none';
-  if(tab==='signup') preloadSignupDepartments();
+  if(tab==='signup'){ preloadSignupDepartments(); updateSignupPhotoPreview(); }
 }
 function toggleSignupEmployeeFields(){
   const role = document.getElementById('signupRole').value;
@@ -1447,42 +1468,54 @@ async function attemptSignup(){
   if(!username || !pw){ errBox.textContent = 'Username and password are required.'; errBox.style.display='block'; return; }
   if(pw !== pw2){ errBox.textContent = 'Passwords do not match.'; errBox.style.display='block'; return; }
 
-  const payload = { username, password: pw, role };
+  try{
+    await loadUsers();
+  }catch(e){
+    errBox.textContent = 'Could not connect to storage. Try reloading this page.';
+    errBox.style.display='block';
+    return;
+  }
+  if(users[username]){ errBox.textContent = 'That username is already taken.'; errBox.style.display='block'; return; }
+
+  let employeeId = null;
   if(role === 'employee'){
     const name = document.getElementById('signupName').value.trim();
     if(!name){ errBox.textContent = 'Full name is required.'; errBox.style.display='block'; return; }
-    payload.name = name;
-    payload.designation = document.getElementById('signupDesignation').value.trim();
-    payload.department = document.getElementById('signupDept').value;
+    try{
+      const e = await window.storage.get('employees-data', true);
+      employees = parseStored(e && e.value, {});
+    }catch(err){ employees = employees || {}; }
+    employeeId = 'EMP-' + String(Object.keys(employees).length+1).padStart(2,'0') + '-' + uid().slice(-3).toUpperCase();
+    employees[employeeId] = {
+      id: employeeId,
+      name,
+      designation: document.getElementById('signupDesignation').value.trim(),
+      department: document.getElementById('signupDept').value,
+      status: 'Active',
+      supervisor: false,
+      email: '', phone: '', address: '',
+      dob: document.getElementById('signupDob').value || '',
+      joinDate: document.getElementById('signupJoinDate').value || new Date().toISOString().slice(0,10),
+      emergency: { name:'', phone:'' },
+      salary: { basic:0, allowances:0, deductions:0 },
+      leaveBalance: { annual:15, sick:15, casual:7 },
+      documents: [], photo: pendingSignupPhoto
+    };
+    await saveEmployees();
   }
 
-  let r, data;
-  try{
-    r = await fetch('/api/signup', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(payload)
-    });
-    data = await r.json();
-  }catch(e){
-    errBox.textContent = 'Could not connect to the server. Try reloading this page.';
-    errBox.style.display='block';
-    return;
-  }
-  if(!r.ok){
-    errBox.textContent = data.error || 'Could not create account.';
-    errBox.style.display='block';
-    return;
-  }
-
-  toast(data.role !== role
-    ? 'Account created as an employee — an admin account already exists.'
-    : 'Account created — you can sign in now.');
+  users[username] = { username, password: pw, role, employeeId, createdAt: new Date().toISOString() };
+  await saveUsers();
+  toast('Account created — you can sign in now.');
   document.getElementById('signupUsername').value='';
   document.getElementById('signupPassword').value='';
   document.getElementById('signupPassword2').value='';
   document.getElementById('signupName').value='';
   document.getElementById('signupDesignation').value='';
+  document.getElementById('signupDob').value='';
+  document.getElementById('signupJoinDate').value='';
+  pendingSignupPhoto = null;
+  updateSignupPhotoPreview();
   switchAuthTab('signin');
   document.getElementById('loginUsername').value = username;
 }
@@ -1492,37 +1525,28 @@ async function attemptLogin(){
   const pw = document.getElementById('loginPassword').value;
   const errBox = document.getElementById('loginError');
   errBox.style.display='none';
-  let r, data;
   try{
-    r = await fetch('/api/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username, password: pw })
-    });
-    data = await r.json();
+    await loadUsers();
+    const u = users[username];
+    if(u && u.password === pw){
+      currentUser = u;
+      document.getElementById('loginScreen').style.display='none';
+      document.getElementById('app').style.display='block';
+      await loadAll();
+      try{ chatMessages = await loadChatMessages(); }catch(e){ /* ignore */ }
+      lastSeenChatCount = chatMessages.length;
+      populateDeptSelectors();
+      applyRoleAccess();
+    } else {
+      errBox.textContent = 'Incorrect username or password.';
+      errBox.style.display='block';
+    }
   }catch(e){
-    errBox.textContent = 'Could not connect to the server. Try reloading this page.';
+    errBox.textContent = 'Could not connect to storage. Try reloading this page.';
     errBox.style.display='block';
-    return;
   }
-  if(!r.ok){
-    errBox.textContent = data.error || 'Incorrect username or password.';
-    errBox.style.display='block';
-    return;
-  }
-  // data is { username, role, employeeId } — never a password, the server
-  // already verified it and set an HttpOnly session cookie for us.
-  currentUser = data;
-  document.getElementById('loginScreen').style.display='none';
-  document.getElementById('app').style.display='block';
-  await loadAll();
-  try{ chatMessages = await loadChatMessages(); }catch(e){ /* ignore */ }
-  lastSeenChatCount = chatMessages.length;
-  populateDeptSelectors();
-  applyRoleAccess();
 }
-async function logout(){
-  try{ await fetch('/api/logout', { method: 'POST' }); }catch(e){ /* still clear local UI */ }
+function logout(){
   stopChatPolling();
   stopNotifPolling();
   closeNotifPanel();
@@ -1895,6 +1919,41 @@ function updatePhotoPreview(){
   }
 }
 function removePhoto(){ pendingPhoto = null; updatePhotoPreview(); }
+
+function handleSignupPhotoSelect(evt){
+  const file = evt.target.files[0];
+  if(!file) return;
+  if(!file.type.startsWith('image/')){ toast('Please choose an image file'); return; }
+  const reader = new FileReader();
+  reader.onload = function(e){
+    const img = new Image();
+    img.onload = function(){
+      const size = 200;
+      const canvas = document.createElement('canvas');
+      canvas.width = size; canvas.height = size;
+      const ctx = canvas.getContext('2d');
+      const scale = Math.max(size/img.width, size/img.height);
+      const w = img.width*scale, h = img.height*scale;
+      ctx.drawImage(img, (size-w)/2, (size-h)/2, w, h);
+      pendingSignupPhoto = canvas.toDataURL('image/jpeg', 0.85);
+      updateSignupPhotoPreview();
+    };
+    img.src = e.target.result;
+  };
+  reader.readAsDataURL(file);
+  evt.target.value = '';
+}
+function updateSignupPhotoPreview(){
+  const box = document.getElementById('signupPhotoPreviewBox');
+  if(!box) return;
+  if(pendingSignupPhoto){
+    box.innerHTML = `<img src="${pendingSignupPhoto}" class="avatar-img" style="width:56px;height:56px;">`;
+  } else {
+    const name = document.getElementById('signupName').value || '?';
+    box.innerHTML = `<span class="badge-id" style="width:56px;height:56px;font-size:18px;background:var(--gold-deep);">${initials(name)}</span>`;
+  }
+}
+function removeSignupPhoto(){ pendingSignupPhoto = null; updateSignupPhotoPreview(); }
 
 async function saveEmployee(){
   const name = document.getElementById('empName').value.trim();
@@ -2594,22 +2653,14 @@ async function changePin(){
   const cur = document.getElementById('curPin').value;
   const next = document.getElementById('newPin').value.trim();
   if(!currentUser){ toast('You must be signed in.'); return; }
-  let r, data;
-  try{
-    r = await fetch('/api/change-password', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ currentPassword: cur, newPassword: next })
-    });
-    data = await r.json();
-  }catch(e){
-    toast('Could not connect to the server.');
-    return;
-  }
-  if(!r.ok){
-    toast(data.error || 'Could not update password');
-    return;
-  }
+  await loadUsers();
+  const u = users[currentUser.username];
+  if(!u || cur !== u.password){ toast('Current password is incorrect'); return; }
+  if(!next){ toast('Enter a new password'); return; }
+  u.password = next;
+  users[currentUser.username] = u;
+  currentUser = u;
+  await saveUsers();
   document.getElementById('curPin').value=''; document.getElementById('newPin').value='';
   toast('Password updated');
 }
@@ -2619,6 +2670,19 @@ async function resetAllData(){
   await saveEmployees(); await saveAttendance(); await saveLeaves(); await savePayroll();
   renderAll();
   toast('All data erased');
+}
+async function resetAllAccounts(){
+  if(!confirm('This will permanently delete every sign-in account and every employee profile, including your own. Everyone will need to sign up again with a new (or the same) username and password. Continue?')) return;
+  if(!confirm('Are you sure? This cannot be undone.')) return;
+  users = {};
+  employees = {};
+  await saveUsers();
+  await saveEmployees();
+  currentUser = null;
+  toast('All accounts deleted. Please sign up again.');
+  document.getElementById('app').style.display='none';
+  document.getElementById('loginScreen').style.display='flex';
+  switchAuthTab('signup');
 }
 
 /* ===================== MODAL HELPERS ===================== */
