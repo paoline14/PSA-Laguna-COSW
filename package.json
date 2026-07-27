@@ -2,7 +2,9 @@
   "name": "office-hr-system",
   "version": "1.0.0",
   "private": true,
+  "type": "module",
   "dependencies": {
-    "@vercel/kv": "^2.0.0"
+    "@vercel/kv": "^2.0.0",
+    "bcryptjs": "^2.4.3"
   }
 }

@@ -1181,8 +1181,10 @@ window.storage = {
 };
 
 /* ===================== STATE ===================== */
-let users = {};          // { username: {username, password, role, employeeId} }
-let currentUser = null;  // the signed-in user's record from `users`
+// There is no client-side `users` store anymore — passwords never reach the
+// browser. currentUser is just whatever /api/login or /api/signup returns:
+// { username, role, employeeId }.
+let currentUser = null;
 let employees = {};      // { empId: {..} }
 let attendance = {};     // { empId: { "yyyy-mm": {"01":"P",...} } }
 let leaves = [];         // [ {id, empId, type, from, to, days, status, reason} ]
@@ -1298,14 +1300,6 @@ async function loadChatMessages(){
   }catch(e){ return chatMessages; }
 }
 async function saveChatMessages(){ try{ await window.storage.set('chat-messages-data', JSON.stringify(chatMessages), true); }catch(e){ toast('Send failed: ' + e.message); } }
-
-async function loadUsers(){
-  try{
-    const u = await window.storage.get('users-data', true);
-    users = parseStored(u && u.value, {});
-  }catch(e){ users = {}; }
-}
-async function saveUsers(){ try{ await window.storage.set('users-data', JSON.stringify(users), true); }catch(e){ toast('Save failed: ' + e.message); } }
 
 async function preloadSignupDepartments(){
   try{
@@ -1453,44 +1447,37 @@ async function attemptSignup(){
   if(!username || !pw){ errBox.textContent = 'Username and password are required.'; errBox.style.display='block'; return; }
   if(pw !== pw2){ errBox.textContent = 'Passwords do not match.'; errBox.style.display='block'; return; }
 
-  try{
-    await loadUsers();
-  }catch(e){
-    errBox.textContent = 'Could not connect to storage. Try reloading this page.';
-    errBox.style.display='block';
-    return;
-  }
-  if(users[username]){ errBox.textContent = 'That username is already taken.'; errBox.style.display='block'; return; }
-
-  let employeeId = null;
+  const payload = { username, password: pw, role };
   if(role === 'employee'){
     const name = document.getElementById('signupName').value.trim();
     if(!name){ errBox.textContent = 'Full name is required.'; errBox.style.display='block'; return; }
-    try{
-      const e = await window.storage.get('employees-data', true);
-      employees = parseStored(e && e.value, {});
-    }catch(err){ employees = employees || {}; }
-    employeeId = 'EMP-' + String(Object.keys(employees).length+1).padStart(2,'0') + '-' + uid().slice(-3).toUpperCase();
-    employees[employeeId] = {
-      id: employeeId,
-      name,
-      designation: document.getElementById('signupDesignation').value.trim(),
-      department: document.getElementById('signupDept').value,
-      status: 'Active',
-      supervisor: false,
-      email: '', phone: '', address: '', dob: '',
-      joinDate: new Date().toISOString().slice(0,10),
-      emergency: { name:'', phone:'' },
-      salary: { basic:0, allowances:0, deductions:0 },
-      leaveBalance: { annual:15, sick:15, casual:7 },
-      documents: [], photo: null
-    };
-    await saveEmployees();
+    payload.name = name;
+    payload.designation = document.getElementById('signupDesignation').value.trim();
+    payload.department = document.getElementById('signupDept').value;
   }
 
-  users[username] = { username, password: pw, role, employeeId, createdAt: new Date().toISOString() };
-  await saveUsers();
-  toast('Account created — you can sign in now.');
+  let r, data;
+  try{
+    r = await fetch('/api/signup', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    data = await r.json();
+  }catch(e){
+    errBox.textContent = 'Could not connect to the server. Try reloading this page.';
+    errBox.style.display='block';
+    return;
+  }
+  if(!r.ok){
+    errBox.textContent = data.error || 'Could not create account.';
+    errBox.style.display='block';
+    return;
+  }
+
+  toast(data.role !== role
+    ? 'Account created as an employee — an admin account already exists.'
+    : 'Account created — you can sign in now.');
   document.getElementById('signupUsername').value='';
   document.getElementById('signupPassword').value='';
   document.getElementById('signupPassword2').value='';
@@ -1505,28 +1492,37 @@ async function attemptLogin(){
   const pw = document.getElementById('loginPassword').value;
   const errBox = document.getElementById('loginError');
   errBox.style.display='none';
+  let r, data;
   try{
-    await loadUsers();
-    const u = users[username];
-    if(u && u.password === pw){
-      currentUser = u;
-      document.getElementById('loginScreen').style.display='none';
-      document.getElementById('app').style.display='block';
-      await loadAll();
-      try{ chatMessages = await loadChatMessages(); }catch(e){ /* ignore */ }
-      lastSeenChatCount = chatMessages.length;
-      populateDeptSelectors();
-      applyRoleAccess();
-    } else {
-      errBox.textContent = 'Incorrect username or password.';
-      errBox.style.display='block';
-    }
+    r = await fetch('/api/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password: pw })
+    });
+    data = await r.json();
   }catch(e){
-    errBox.textContent = 'Could not connect to storage. Try reloading this page.';
+    errBox.textContent = 'Could not connect to the server. Try reloading this page.';
     errBox.style.display='block';
+    return;
   }
+  if(!r.ok){
+    errBox.textContent = data.error || 'Incorrect username or password.';
+    errBox.style.display='block';
+    return;
+  }
+  // data is { username, role, employeeId } — never a password, the server
+  // already verified it and set an HttpOnly session cookie for us.
+  currentUser = data;
+  document.getElementById('loginScreen').style.display='none';
+  document.getElementById('app').style.display='block';
+  await loadAll();
+  try{ chatMessages = await loadChatMessages(); }catch(e){ /* ignore */ }
+  lastSeenChatCount = chatMessages.length;
+  populateDeptSelectors();
+  applyRoleAccess();
 }
-function logout(){
+async function logout(){
+  try{ await fetch('/api/logout', { method: 'POST' }); }catch(e){ /* still clear local UI */ }
   stopChatPolling();
   stopNotifPolling();
   closeNotifPanel();
@@ -2598,14 +2594,22 @@ async function changePin(){
   const cur = document.getElementById('curPin').value;
   const next = document.getElementById('newPin').value.trim();
   if(!currentUser){ toast('You must be signed in.'); return; }
-  await loadUsers();
-  const u = users[currentUser.username];
-  if(!u || cur !== u.password){ toast('Current password is incorrect'); return; }
-  if(!next){ toast('Enter a new password'); return; }
-  u.password = next;
-  users[currentUser.username] = u;
-  currentUser = u;
-  await saveUsers();
+  let r, data;
+  try{
+    r = await fetch('/api/change-password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ currentPassword: cur, newPassword: next })
+    });
+    data = await r.json();
+  }catch(e){
+    toast('Could not connect to the server.');
+    return;
+  }
+  if(!r.ok){
+    toast(data.error || 'Could not update password');
+    return;
+  }
   document.getElementById('curPin').value=''; document.getElementById('newPin').value='';
   toast('Password updated');
 }
