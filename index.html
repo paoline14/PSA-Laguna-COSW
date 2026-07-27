@@ -1279,7 +1279,7 @@ async function loadAll(){
     announcements = parseStored(an && an.value, []);
   }catch(err){ announcements = []; }
 }
-async function saveEmployees(){ try{ await window.storage.set('employees-data', JSON.stringify(employees), true); }catch(e){ toast('Save failed: ' + e.message); } }
+async function saveEmployees(){ try{ await window.storage.set('employees-data', JSON.stringify(employees), true); }catch(e){ toast('Save failed: ' + e.message); throw e; } }
 async function saveAttendance(){ try{ await window.storage.set('attendance-data', JSON.stringify(attendance), true); }catch(e){ toast('Save failed: ' + e.message); } }
 async function saveLeaves(){ try{ await window.storage.set('leaves-data', JSON.stringify(leaves), true); }catch(e){ toast('Save failed: ' + e.message); } }
 async function savePayroll(){ try{ await window.storage.set('payroll-data', JSON.stringify(payroll), true); }catch(e){ toast('Save failed: ' + e.message); } }
@@ -1320,7 +1320,7 @@ async function loadUsers(){
     users = parseStored(u && u.value, {});
   }catch(e){ users = {}; }
 }
-async function saveUsers(){ try{ await window.storage.set('users-data', JSON.stringify(users), true); }catch(e){ toast('Save failed: ' + e.message); } }
+async function saveUsers(){ try{ await window.storage.set('users-data', JSON.stringify(users), true); }catch(e){ toast('Save failed: ' + e.message); throw e; } }
 
 async function preloadSignupDepartments(){
   try{
@@ -1501,11 +1501,26 @@ async function attemptSignup(){
       leaveBalance: { annual:15, sick:15, casual:7 },
       documents: [], photo: pendingSignupPhoto
     };
-    await saveEmployees();
+    try{
+      await saveEmployees();
+    }catch(err){
+      errBox.textContent = 'Could not save your account to storage (' + err.message + '). Nothing was created — please check your KV database is connected and try again.';
+      errBox.style.display='block';
+      delete employees[employeeId];
+      return;
+    }
   }
 
   users[username] = { username, password: pw, role, employeeId, createdAt: new Date().toISOString() };
-  await saveUsers();
+  try{
+    await saveUsers();
+  }catch(err){
+    errBox.textContent = 'Could not save your account to storage (' + err.message + '). Nothing was created — please check your KV database is connected and try again.';
+    errBox.style.display='block';
+    delete users[username];
+    if(employeeId) delete employees[employeeId];
+    return;
+  }
   toast('Account created — you can sign in now.');
   document.getElementById('signupUsername').value='';
   document.getElementById('signupPassword').value='';
