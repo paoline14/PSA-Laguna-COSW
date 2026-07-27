@@ -177,6 +177,28 @@ nav.nav{display:flex;flex-direction:column;gap:2px;flex:1;}
 
 .two-col{display:grid;grid-template-columns:1.3fr 1fr;gap:18px;}
 @media (max-width:900px){.two-col{grid-template-columns:1fr;} .stat-grid{grid-template-columns:repeat(2,1fr);}}
+.dash-grid{display:grid;grid-template-columns:1.1fr 0.9fr 1fr;gap:18px;align-items:start;}
+@media (max-width:1100px){.dash-grid{grid-template-columns:1fr 1fr;}}
+@media (max-width:900px){.dash-grid{grid-template-columns:1fr;}}
+.ann-composer{display:flex;flex-direction:column;gap:8px;margin-bottom:14px;}
+.ann-composer textarea{
+  width:100%;resize:vertical;min-height:56px;padding:9px 11px;border:1.5px solid var(--line);border-radius:8px;
+  background:var(--paper);color:var(--text);font-family:'Inter',sans-serif;font-size:13px;outline:none;transition:border-color .15s;
+}
+.ann-composer textarea:focus{border-color:var(--gold);}
+.ann-composer button{
+  align-self:flex-end;padding:7px 16px;border:none;border-radius:7px;background:var(--gold);color:var(--ink);
+  font-weight:700;font-size:12.5px;transition:transform .12s, background .15s;
+}
+.ann-composer button:hover{background:var(--gold-deep);}
+.ann-composer button:active{transform:scale(0.97);}
+.announcement-item{padding:10px 0;border-bottom:1px solid var(--line);}
+.announcement-item:last-child{border-bottom:none;}
+.ann-head{display:flex;align-items:center;gap:8px;font-size:12px;margin-bottom:4px;}
+.ann-head strong{color:var(--text);font-size:12.5px;}
+.ann-time{color:var(--muted);font-size:11px;}
+.ann-del{margin-left:auto;padding:2px 7px;font-size:11px;}
+.ann-text{font-size:13px;color:var(--text);line-height:1.5;white-space:pre-wrap;}
 
 .dept-row{display:flex;align-items:center;gap:10px;margin-bottom:10px;font-size:13px;}
 .dept-row .dot{width:9px;height:9px;border-radius:50%;flex-shrink:0;}
@@ -621,7 +643,7 @@ tr:hover td{background:rgba(167,139,250,0.06);}
         <div class="stat-card"><div class="lbl">On Leave Today</div><div class="stat-num" id="statLeave">0</div><div class="stat-sub">approved leave</div></div>
         <div class="stat-card"><div class="lbl">Departments</div><div class="stat-num" id="statDepts">0</div><div class="stat-sub">active teams</div></div>
       </div>
-      <div class="two-col">
+      <div class="dash-grid">
         <div class="panel">
           <h3>Department breakdown</h3>
           <div id="deptBreakdown"></div>
@@ -629,6 +651,14 @@ tr:hover td{background:rgba(167,139,250,0.06);}
         <div class="panel">
           <h3>Upcoming events <span class="tag">birthdays, anniversaries &amp; expiring docs · next 30 days</span></h3>
           <div id="upcomingEvents"></div>
+        </div>
+        <div class="panel">
+          <h3>Announcements <span class="tag">office-wide updates</span></h3>
+          <div class="ann-composer" id="annComposer">
+            <textarea id="newAnnouncementText" placeholder="Post an announcement for the office..."></textarea>
+            <button onclick="addAnnouncement()">Post</button>
+          </div>
+          <div id="announcementsList"></div>
         </div>
       </div>
     </div>
@@ -1004,6 +1034,7 @@ let leaves = [];         // [ {id, empId, type, from, to, days, status, reason} 
 let payroll = {};        // { empId: { "yyyy-mm": {basic,allowances,deductions,net} } }
 let departments = ["Statistical","QMS","Accounting","Procurement"];
 let chatMessages = [];   // [ {id, senderId, senderName, text, ts, attachment} ]
+let announcements = [];  // [ {id, text, author, ts} ]
 let pendingChatAttachment = null; // { name, type, size, dataUrl }
 let chatPollTimer = null;
 let currentEditEmpId = null;
@@ -1073,12 +1104,37 @@ async function loadAll(){
     const d = await window.storage.get('departments-data', true);
     departments = parseStored(d && d.value, departments);
   }catch(err){ /* keep defaults */ }
+  try{
+    const an = await window.storage.get('announcements-data', true);
+    announcements = parseStored(an && an.value, []);
+  }catch(err){ announcements = []; }
 }
 async function saveEmployees(){ try{ await window.storage.set('employees-data', JSON.stringify(employees), true); }catch(e){ toast('Save failed: ' + e.message); } }
 async function saveAttendance(){ try{ await window.storage.set('attendance-data', JSON.stringify(attendance), true); }catch(e){ toast('Save failed: ' + e.message); } }
 async function saveLeaves(){ try{ await window.storage.set('leaves-data', JSON.stringify(leaves), true); }catch(e){ toast('Save failed: ' + e.message); } }
 async function savePayroll(){ try{ await window.storage.set('payroll-data', JSON.stringify(payroll), true); }catch(e){ toast('Save failed: ' + e.message); } }
 async function saveDepartments(){ try{ await window.storage.set('departments-data', JSON.stringify(departments), true); }catch(e){ toast('Save failed: ' + e.message); } }
+async function saveAnnouncements(){ try{ await window.storage.set('announcements-data', JSON.stringify(announcements), true); }catch(e){ toast('Save failed: ' + e.message); } }
+
+async function addAnnouncement(){
+  const ta = document.getElementById('newAnnouncementText');
+  if(!ta) return;
+  const text = ta.value.trim();
+  if(!text) return;
+  const authorName = (currentUser && currentUser.employeeId && employees[currentUser.employeeId])
+    ? employees[currentUser.employeeId].name
+    : (currentUser ? currentUser.username : 'Admin');
+  announcements.unshift({ id: 'an_' + Date.now(), text, author: authorName, ts: Date.now() });
+  ta.value = '';
+  await saveAnnouncements();
+  renderDashboard();
+  toast('Announcement posted');
+}
+async function deleteAnnouncement(id){
+  announcements = announcements.filter(a=>a.id!==id);
+  await saveAnnouncements();
+  renderDashboard();
+}
 
 async function loadChatMessages(){
   try{
@@ -1293,6 +1349,7 @@ function populateDeptSelectors(){
 
 /* ===================== DASHBOARD ===================== */
 function renderDashboard(){
+  const isAdmin = currentUser && currentUser.role === 'admin';
   const list = Object.values(employees);
   document.getElementById('todayLabel').textContent = new Date().toLocaleDateString('en-US',{weekday:'long', year:'numeric', month:'long', day:'numeric'});
   document.getElementById('statTotal').textContent = list.length;
@@ -1350,6 +1407,22 @@ function renderDashboard(){
         <div style="font-size:11px;color:var(--muted);">${ev.daysAway===0?'Today':ev.daysAway+' day(s) away'}</div>
       </div>
     </div>`).join('') : '<div style="font-size:12.5px;color:var(--muted);">Nothing coming up in the next 30 days.</div>';
+
+  // announcements
+  const annComposer = document.getElementById('annComposer');
+  if(annComposer) annComposer.style.display = isAdmin ? 'flex' : 'none';
+  const annBox = document.getElementById('announcementsList');
+  if(annBox){
+    annBox.innerHTML = announcements.length ? announcements.map(a=>`
+      <div class="announcement-item">
+        <div class="ann-head">
+          <strong>${escapeHtml(a.author||'Admin')}</strong>
+          <span class="ann-time">${fmtChatTime(a.ts)}</span>
+          ${isAdmin ? `<button class="icon-btn danger ann-del" onclick="deleteAnnouncement('${a.id}')">✕</button>` : ''}
+        </div>
+        <div class="ann-text">${escapeHtml(a.text)}</div>
+      </div>`).join('') : '<div style="font-size:12.5px;color:var(--muted);">No announcements yet.</div>';
+  }
   updateNotifBadge();
 }
 function renderOrgChart(){
