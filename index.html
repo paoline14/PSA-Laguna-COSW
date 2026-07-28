@@ -811,7 +811,6 @@ tr:hover td{background:rgba(167,139,250,0.06);}
       <button data-view="dashboard" class="active" onclick="showView('dashboard')"><span class="ic">◈</span> Dashboard</button>
       <button data-view="orgchart" onclick="showView('orgchart')"><span class="ic">⛋</span> Org Chart</button>
       <button data-view="employees" onclick="showView('employees')"><span class="ic">☰</span> Employees</button>
-      <button id="navMyProfile" style="display:none;" onclick="openProfileView(currentUser && currentUser.employeeId)"><span class="ic">🧑</span> My Profile</button>
       <button data-view="attendance" onclick="showView('attendance')"><span class="ic">▦</span> Attendance</button>
       <button data-view="leaves" onclick="showView('leaves')"><span class="ic">◷</span> Leave</button>
       <button data-view="payroll" onclick="showView('payroll')"><span class="ic">$</span> Payroll</button>
@@ -878,7 +877,7 @@ tr:hover td{background:rgba(167,139,250,0.06);}
         <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
           <div class="search-box"><span>🔎</span><input type="text" id="empSearch" placeholder="Search name, role, ID..." oninput="renderEmployeeTable()"></div>
           <select id="deptFilter" onchange="renderEmployeeTable()" style="width:160px;"></select>
-          <button class="btn btn-gold" onclick="openEmployeeModal()">+ Add Employee</button>
+          <button class="btn btn-gold" id="addEmpBtn" onclick="openEmployeeModal()">+ Add Employee</button>
         </div>
       </div>
       <div class="emp-split" id="empSplit">
@@ -891,7 +890,7 @@ tr:hover td{background:rgba(167,139,250,0.06);}
             <div class="big">🗂️</div>
             <h4>No employees yet</h4>
             <p>Add your first staff record to get started.</p>
-            <button class="btn btn-primary" onclick="openEmployeeModal()">+ Add Employee</button>
+            <button class="btn btn-primary" id="addEmpBtnEmpty" onclick="openEmployeeModal()">+ Add Employee</button>
           </div>
         </div>
         <div class="panel emp-profile-panel" id="empProfilePanel">
@@ -1585,7 +1584,7 @@ async function logout(){
 /* ===================== ROLE-BASED ACCESS ===================== */
 function applyRoleAccess(){
   const isAdmin = currentUser && currentUser.role === 'admin';
-  const adminOnlyViews = ['employees','settings'];
+  const adminOnlyViews = ['settings'];
   document.querySelectorAll('.nav button[data-view]').forEach(btn=>{
     btn.style.display = (!isAdmin && adminOnlyViews.includes(btn.dataset.view)) ? 'none' : '';
   });
@@ -1596,8 +1595,8 @@ function applyRoleAccess(){
   }
   const savePayrollBtn = document.getElementById('savePayrollBtn');
   if(savePayrollBtn) savePayrollBtn.style.display = isAdmin ? '' : 'none';
-  const navMyProfile = document.getElementById('navMyProfile');
-  if(navMyProfile) navMyProfile.style.display = isAdmin ? 'none' : '';
+  document.getElementById('addEmpBtn').style.display = isAdmin ? '' : 'none';
+  document.getElementById('addEmpBtnEmpty').style.display = isAdmin ? '' : 'none';
   renderAll();
   showView(isAdmin ? 'dashboard' : 'attendance');
   startNotifPolling();
@@ -1803,6 +1802,7 @@ function checkUpcoming(emp, dateStr, label, events){
 
 /* ===================== EMPLOYEES ===================== */
 function renderEmployeeTable(){
+  const isAdmin = currentUser && currentUser.role === 'admin';
   const search = (document.getElementById('empSearch').value||'').toLowerCase();
   const deptF = document.getElementById('deptFilter').value;
   const list = Object.values(employees).filter(e=>{
@@ -1823,10 +1823,10 @@ function renderEmployeeTable(){
       <td style="font-size:12px;">${e.email||''}<br><span style="color:var(--muted);">${e.phone||''}</span></td>
       <td class="mono" style="font-size:12px;">${e.joinDate||'—'}</td>
       <td><span class="pill ${e.status==='Active'?'good':'neutral'}">${e.status||'Active'}</span></td>
-      <td><div class="actions-cell">
+      <td>${isAdmin ? `<div class="actions-cell">
         <button class="icon-btn" onclick="event.stopPropagation();openEmployeeModal('${e.id}')">Edit</button>
         <button class="icon-btn danger" onclick="event.stopPropagation();deleteEmployee('${e.id}')">Delete</button>
-      </div></td>
+      </div>` : ''}</td>
     </tr>`).join('');
 }
 
