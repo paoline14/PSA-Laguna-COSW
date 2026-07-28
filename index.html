@@ -545,13 +545,20 @@ label{font-size:11.5px;font-weight:600;color:var(--muted);text-transform:upperca
 .emp-cell-row.selected{background:rgba(255,193,7,0.1);box-shadow:inset 3px 0 0 var(--gold);}
 
 /* Employees split view: list slides left, profile panel reveals on the right */
-.emp-split{display:flex;align-items:flex-start;gap:18px;}
-.emp-list-panel{flex:1 1 100%;min-width:0;transition:flex-basis .5s cubic-bezier(.4,0,.2,1);}
-.emp-list-panel table{transition:opacity .35s ease;}
+.emp-split{display:flex;align-items:stretch;gap:18px;}
+.emp-list-panel{flex:1 1 100%;min-width:0;overflow:hidden;transition:flex-basis .5s cubic-bezier(.4,0,.2,1);}
+.emp-list-panel table{transition:opacity .35s ease;table-layout:fixed;width:100%;}
 .emp-profile-panel{flex:0 0 0%;width:0;min-width:0;opacity:0;padding:20px;overflow:hidden;transform:translateX(24px);transition:flex-basis .5s cubic-bezier(.4,0,.2,1),opacity .35s ease,transform .45s cubic-bezier(.4,0,.2,1),padding .5s ease;pointer-events:none;}
-.emp-split.split .emp-list-panel{flex-basis:26%;}
-.emp-split.split .emp-profile-panel{flex-basis:72%;opacity:1;transform:translateX(0);pointer-events:auto;padding:28px 32px;}
+.emp-split.split .emp-list-panel{flex:0 0 260px;}
+.emp-split.split .emp-profile-panel{flex:1 1 auto;opacity:1;transform:translateX(0);pointer-events:auto;padding:28px 32px;}
 .emp-split.split .actions-cell{display:none;}
+.emp-split.split .emp-list-panel th:not(:first-child),
+.emp-split.split .emp-list-panel td:not(:first-child){display:none;}
+.emp-split.split .emp-list-panel td,.emp-split.split .emp-list-panel th{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.emp-split.split .emp-list-panel .emp-cell{min-width:0;}
+.emp-split.split .emp-list-panel .emp-cell>div{min-width:0;}
+.emp-split.split .emp-list-panel .emp-cell .name,
+.emp-split.split .emp-list-panel .emp-cell .role{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
 .emp-profile-panel .profile-head{gap:22px;margin-bottom:24px;}
 .emp-profile-panel .pname{font-size:24px;}
 .emp-profile-panel .prole{font-size:14px;}
