@@ -549,8 +549,12 @@ label{font-size:11.5px;font-weight:600;color:var(--muted);text-transform:upperca
 .emp-list-panel{flex:1 1 100%;min-width:0;transition:flex-basis .5s cubic-bezier(.4,0,.2,1);}
 .emp-list-panel table{transition:opacity .35s ease;}
 .emp-profile-panel{flex:0 0 0%;width:0;min-width:0;opacity:0;padding:20px;overflow:hidden;transform:translateX(24px);transition:flex-basis .5s cubic-bezier(.4,0,.2,1),opacity .35s ease,transform .45s cubic-bezier(.4,0,.2,1),padding .5s ease;pointer-events:none;}
-.emp-split.split .emp-list-panel{flex-basis:44%;}
-.emp-split.split .emp-profile-panel{flex-basis:54%;opacity:1;transform:translateX(0);pointer-events:auto;}
+.emp-split.split .emp-list-panel{flex-basis:26%;}
+.emp-split.split .emp-profile-panel{flex-basis:72%;opacity:1;transform:translateX(0);pointer-events:auto;padding:28px 32px;}
+.emp-split.split .actions-cell{display:none;}
+.emp-profile-panel .profile-head{gap:22px;margin-bottom:24px;}
+.emp-profile-panel .pname{font-size:24px;}
+.emp-profile-panel .prole{font-size:14px;}
 .profile-panel-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;}
 .btn-sm{padding:6px 12px;font-size:12px;}
 @media (max-width:900px){
@@ -2014,7 +2018,7 @@ function openProfileView(id){
 
   document.getElementById('profileName2').textContent = e.name;
   document.getElementById('profileRole2').textContent = `${e.designation||'—'} · ${e.department||''} · ${e.id}`;
-  document.getElementById('profilePhotoBox2').innerHTML = avatarHtml(e, 60);
+  document.getElementById('profilePhotoBox2').innerHTML = avatarHtml(e, 110);
   document.getElementById('profileEditBtn2').style.display = isAdmin ? '' : 'none';
   switchProfileTab2('contact');
   renderProfileContact(e);
