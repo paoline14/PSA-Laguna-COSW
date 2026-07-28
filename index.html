@@ -541,7 +541,22 @@ label{font-size:11.5px;font-weight:600;color:var(--muted);text-transform:upperca
 .profile-info-grid .pi-item .pi-val{font-size:13.5px;color:var(--text);}
 .doc-item .di-expiry{font-size:10.5px;color:var(--muted);white-space:nowrap;}
 .doc-item .di-expiry.soon{color:var(--gold-deep);font-weight:600;}
-.emp-cell-row{cursor:pointer;}
+.emp-cell-row{cursor:pointer;transition:background .2s ease;}
+.emp-cell-row.selected{background:rgba(255,193,7,0.1);box-shadow:inset 3px 0 0 var(--gold);}
+
+/* Employees split view: list slides left, profile panel reveals on the right */
+.emp-split{display:flex;align-items:flex-start;gap:18px;}
+.emp-list-panel{flex:1 1 100%;min-width:0;transition:flex-basis .5s cubic-bezier(.4,0,.2,1);}
+.emp-list-panel table{transition:opacity .35s ease;}
+.emp-profile-panel{flex:0 0 0%;width:0;min-width:0;opacity:0;padding:20px;overflow:hidden;transform:translateX(24px);transition:flex-basis .5s cubic-bezier(.4,0,.2,1),opacity .35s ease,transform .45s cubic-bezier(.4,0,.2,1),padding .5s ease;pointer-events:none;}
+.emp-split.split .emp-list-panel{flex-basis:44%;}
+.emp-split.split .emp-profile-panel{flex-basis:54%;opacity:1;transform:translateX(0);pointer-events:auto;}
+.profile-panel-head{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;}
+.btn-sm{padding:6px 12px;font-size:12px;}
+@media (max-width:900px){
+  .emp-split.split{flex-direction:column;}
+  .emp-split.split .emp-list-panel,.emp-split.split .emp-profile-panel{flex-basis:100%;width:100%;}
+}
 
 .toast{
   position:fixed;bottom:22px;right:22px;background:var(--ink);color:#fff;padding:12px 18px;border-radius:8px;
@@ -855,16 +870,55 @@ tr:hover td{background:rgba(167,139,250,0.06);}
           <button class="btn btn-gold" onclick="openEmployeeModal()">+ Add Employee</button>
         </div>
       </div>
-      <div class="panel">
-        <table>
-          <thead><tr><th>Employee</th><th>Department</th><th>Contact</th><th>Joined</th><th>Status</th><th></th></tr></thead>
-          <tbody id="empTableBody"></tbody>
-        </table>
-        <div class="empty-state" id="empEmptyState" style="display:none;">
-          <div class="big">🗂️</div>
-          <h4>No employees yet</h4>
-          <p>Add your first staff record to get started.</p>
-          <button class="btn btn-primary" onclick="openEmployeeModal()">+ Add Employee</button>
+      <div class="emp-split" id="empSplit">
+        <div class="panel emp-list-panel" id="empListPanel">
+          <table>
+            <thead><tr><th>Employee</th><th>Department</th><th>Contact</th><th>Joined</th><th>Status</th><th></th></tr></thead>
+            <tbody id="empTableBody"></tbody>
+          </table>
+          <div class="empty-state" id="empEmptyState" style="display:none;">
+            <div class="big">🗂️</div>
+            <h4>No employees yet</h4>
+            <p>Add your first staff record to get started.</p>
+            <button class="btn btn-primary" onclick="openEmployeeModal()">+ Add Employee</button>
+          </div>
+        </div>
+        <div class="panel emp-profile-panel" id="empProfilePanel">
+          <div class="profile-panel-head">
+            <button class="btn btn-ghost btn-sm" onclick="closeProfilePanel()">← Back to list</button>
+            <button class="btn btn-primary btn-sm" id="profileEditBtn2" onclick="editFromProfile()">Edit employee</button>
+          </div>
+          <div class="profile-head">
+            <div id="profilePhotoBox2"></div>
+            <div>
+              <div class="pname" id="profileName2">—</div>
+              <div class="prole" id="profileRole2">—</div>
+            </div>
+          </div>
+          <div class="tabs">
+            <button class="tab-btn active" data-ptab2="contact" onclick="switchProfileTab2('contact')">Contact Info</button>
+            <button class="tab-btn" data-ptab2="docs" onclick="switchProfileTab2('docs')">Documents</button>
+            <button class="tab-btn" data-ptab2="att" onclick="switchProfileTab2('att')">Attendance History</button>
+            <button class="tab-btn" data-ptab2="leave" onclick="switchProfileTab2('leave')">Leave History</button>
+          </div>
+          <div class="tab-pane active" id="ptab2-contact">
+            <div class="profile-info-grid" id="profileContactGrid2"></div>
+          </div>
+          <div class="tab-pane" id="ptab2-docs">
+            <div id="profileDocList2"></div>
+          </div>
+          <div class="tab-pane" id="ptab2-att">
+            <table>
+              <thead><tr><th>Month</th><th>Present</th><th>Absent</th><th>Leave</th><th>Half-day</th></tr></thead>
+              <tbody id="profileAttBody2"></tbody>
+            </table>
+          </div>
+          <div class="tab-pane" id="ptab2-leave">
+            <table>
+              <thead><tr><th>Type</th><th>Dates</th><th>Days</th><th>Status</th></tr></thead>
+              <tbody id="profileLeaveBody2"></tbody>
+            </table>
+          </div>
         </div>
       </div>
     </div>
@@ -1070,50 +1124,6 @@ tr:hover td{background:rgba(167,139,250,0.06);}
     <div class="modal-foot">
       <button class="btn btn-ghost" onclick="closeModal('employeeModalOverlay')">Cancel</button>
       <button class="btn btn-primary" onclick="saveEmployee()">Save employee</button>
-    </div>
-  </div>
-</div>
-
-<!-- ============ PROFILE VIEW MODAL ============ -->
-<div class="modal-overlay" id="profileModalOverlay">
-  <div class="modal" style="width:640px;">
-    <div class="modal-head"><h3>Employee profile</h3><button class="modal-close" onclick="closeModal('profileModalOverlay')">✕</button></div>
-    <div class="modal-body">
-      <div class="profile-head">
-        <div id="profilePhotoBox"></div>
-        <div>
-          <div class="pname" id="profileName">—</div>
-          <div class="prole" id="profileRole">—</div>
-        </div>
-      </div>
-      <div class="tabs">
-        <button class="tab-btn active" data-ptab="contact" onclick="switchProfileTab('contact')">Contact Info</button>
-        <button class="tab-btn" data-ptab="docs" onclick="switchProfileTab('docs')">Documents</button>
-        <button class="tab-btn" data-ptab="att" onclick="switchProfileTab('att')">Attendance History</button>
-        <button class="tab-btn" data-ptab="leave" onclick="switchProfileTab('leave')">Leave History</button>
-      </div>
-      <div class="tab-pane active" id="ptab-contact">
-        <div class="profile-info-grid" id="profileContactGrid"></div>
-      </div>
-      <div class="tab-pane" id="ptab-docs">
-        <div id="profileDocList"></div>
-      </div>
-      <div class="tab-pane" id="ptab-att">
-        <table>
-          <thead><tr><th>Month</th><th>Present</th><th>Absent</th><th>Leave</th><th>Half-day</th></tr></thead>
-          <tbody id="profileAttBody"></tbody>
-        </table>
-      </div>
-      <div class="tab-pane" id="ptab-leave">
-        <table>
-          <thead><tr><th>Type</th><th>Dates</th><th>Days</th><th>Status</th></tr></thead>
-          <tbody id="profileLeaveBody"></tbody>
-        </table>
-      </div>
-    </div>
-    <div class="modal-foot">
-      <button class="btn btn-ghost" onclick="closeModal('profileModalOverlay')">Close</button>
-      <button class="btn btn-primary" id="profileEditBtn" onclick="editFromProfile()">Edit employee</button>
     </div>
   </div>
 </div>
@@ -1610,7 +1620,7 @@ function showView(name){
   if(name==='attendance') renderAttendance();
   if(name==='payroll') renderPayroll();
   if(name==='leaves') renderLeaves();
-  if(name==='employees') renderEmployeeTable();
+  if(name==='employees') renderEmployeeTable(); else { const sp=document.getElementById('empSplit'); if(sp) sp.classList.remove('split'); currentProfileEmpId=null; }
   if(name==='dashboard') renderDashboard();
   if(name==='orgchart') renderOrgChart();
   if(name==='settings') renderSettings();
@@ -1793,7 +1803,7 @@ function renderEmployeeTable(){
   const body = document.getElementById('empTableBody');
   document.getElementById('empEmptyState').style.display = Object.keys(employees).length ? 'none':'block';
   body.innerHTML = list.map(e=>`
-    <tr class="emp-cell-row" onclick="openProfileView('${e.id}')">
+    <tr class="emp-cell-row" data-emp-id="${e.id}" onclick="openProfileView('${e.id}')">
       <td><div class="emp-cell">
         ${avatarHtml(e, 34)}
         <div><div class="name">${e.name}</div><div class="role">${e.designation||''} · <span class="mono">${e.id}</span></div></div>
@@ -1988,7 +1998,7 @@ async function deleteEmployee(id){
   toast('Employee deleted');
 }
 
-/* ===================== EMPLOYEE PROFILE VIEW ===================== */
+/* ===================== EMPLOYEE PROFILE VIEW (inline split panel) ===================== */
 let currentProfileEmpId = null;
 function openProfileView(id){
   if(!id || !employees[id]){ toast('No profile found'); return; }
@@ -1996,27 +2006,43 @@ function openProfileView(id){
   if(!isAdmin && id !== currentUser.employeeId){ toast('You can only view your own profile'); return; }
   currentProfileEmpId = id;
   const e = employees[id];
-  document.getElementById('profileName').textContent = e.name;
-  document.getElementById('profileRole').textContent = `${e.designation||'—'} · ${e.department||''} · ${e.id}`;
-  document.getElementById('profilePhotoBox').innerHTML = avatarHtml(e, 60);
-  document.getElementById('profileEditBtn').style.display = isAdmin ? '' : 'none';
-  switchProfileTab('contact');
+
+  // The profile panel lives inside the Employees tab, so make sure we're there.
+  if(!document.getElementById('view-employees').classList.contains('active')){
+    showView('employees');
+  }
+
+  document.getElementById('profileName2').textContent = e.name;
+  document.getElementById('profileRole2').textContent = `${e.designation||'—'} · ${e.department||''} · ${e.id}`;
+  document.getElementById('profilePhotoBox2').innerHTML = avatarHtml(e, 60);
+  document.getElementById('profileEditBtn2').style.display = isAdmin ? '' : 'none';
+  switchProfileTab2('contact');
   renderProfileContact(e);
   renderProfileDocs(e);
   renderProfileAttendance(e);
   renderProfileLeaves(e);
-  document.getElementById('profileModalOverlay').classList.add('active');
+
+  // Slide the list left and reveal the profile on the right.
+  document.getElementById('empSplit').classList.add('split');
+  document.querySelectorAll('#empTableBody .emp-cell-row').forEach(row=>{
+    row.classList.toggle('selected', row.dataset.empId === id);
+  });
 }
-function switchProfileTab(tab){
-  document.querySelectorAll('[data-ptab]').forEach(b=>b.classList.toggle('active', b.dataset.ptab===tab));
-  document.querySelectorAll('#ptab-contact,#ptab-docs,#ptab-att,#ptab-leave').forEach(p=>p.classList.remove('active'));
-  document.getElementById('ptab-'+tab).classList.add('active');
+function closeProfilePanel(){
+  document.getElementById('empSplit').classList.remove('split');
+  document.querySelectorAll('#empTableBody .emp-cell-row').forEach(row=>row.classList.remove('selected'));
+  currentProfileEmpId = null;
+}
+function switchProfileTab2(tab){
+  document.querySelectorAll('[data-ptab2]').forEach(b=>b.classList.toggle('active', b.dataset.ptab2===tab));
+  document.querySelectorAll('#ptab2-contact,#ptab2-docs,#ptab2-att,#ptab2-leave').forEach(p=>p.classList.remove('active'));
+  document.getElementById('ptab2-'+tab).classList.add('active');
 }
 function profileField(lbl, val){
   return `<div class="pi-item"><div class="pi-lbl">${lbl}</div><div class="pi-val">${val || '—'}</div></div>`;
 }
 function renderProfileContact(e){
-  const grid = document.getElementById('profileContactGrid');
+  const grid = document.getElementById('profileContactGrid2');
   grid.innerHTML = [
     profileField('Email', e.email),
     profileField('Phone', e.phone),
@@ -2029,7 +2055,7 @@ function renderProfileContact(e){
   ].join('');
 }
 function renderProfileDocs(e){
-  const box = document.getElementById('profileDocList');
+  const box = document.getElementById('profileDocList2');
   const docs = e.documents || [];
   if(!docs.length){ box.innerHTML = '<div style="font-size:12px;color:var(--muted);">No document records.</div>'; return; }
   const now = new Date();
@@ -2049,7 +2075,7 @@ function renderProfileDocs(e){
   }).join('');
 }
 function renderProfileAttendance(e){
-  const body = document.getElementById('profileAttBody');
+  const body = document.getElementById('profileAttBody2');
   const hist = attendance[e.id] || {};
   const months = Object.keys(hist).sort().reverse().slice(0,6);
   if(!months.length){ body.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--muted);">No attendance recorded yet.</td></tr>'; return; }
@@ -2061,7 +2087,7 @@ function renderProfileAttendance(e){
   }).join('');
 }
 function renderProfileLeaves(e){
-  const body = document.getElementById('profileLeaveBody');
+  const body = document.getElementById('profileLeaveBody2');
   const list = leaves.filter(l=>l.empId===e.id).slice().reverse();
   if(!list.length){ body.innerHTML = '<tr><td colspan="4" style="text-align:center;color:var(--muted);">No leave history.</td></tr>'; return; }
   body.innerHTML = list.map(l=>{
@@ -2071,7 +2097,7 @@ function renderProfileLeaves(e){
 }
 function editFromProfile(){
   if(!currentProfileEmpId) return;
-  closeModal('profileModalOverlay');
+  closeProfilePanel();
   openEmployeeModal(currentProfileEmpId);
 }
 
